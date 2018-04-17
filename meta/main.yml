@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: BSD-3-Clause
+galaxy_info:
+  author: Gorka Eguileor <geguileo@redhat.com>
+  description: Storage management and consumption
+  company: Red Hat, Inc.
+  license: Apache
+  min_ansible_version: 2.4
+  galaxy_tags: [ 'storage', 'system', 'alpha', 'volume', 'cinderlib', 'cinder', 'provision' ]
+  platforms:
+  - name: Fedora
+    versions: [ 24, 25 ]
+  - name: EL
+    versions: [ 6, 7 ]

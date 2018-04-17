@@ -1,0 +1,66 @@
+# Copyright (c) 2018, Red Hat, Inc.
+# All Rights Reserved.
+#
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
+
+# -----------------------------------------------------------------------------
+# SET REPOSITORIES
+#
+
+- set_fact: storage_cl_try_osp="{{ ansible_distribution == 'Red Hat Enterprise Linux' and ansible_distribution_major_version == 7 }}"
+
+- name: Disable unwanted OSP repositories on RHEL
+  yum_repository:
+    name: "{{ item }}"
+    state: absent
+  ignore_errors: True
+  when: storage_cl_try_osp
+  with_list:
+      - "rhel-{{ ansible_distribution_major_version}}-server-openstack-5.0-rpms"
+      - "rhel-{{ ansible_distribution_major_version}}-server-openstack-6.0-rpms"
+      - "rhel-{{ ansible_distribution_major_version}}-server-openstack-7.0-rpms"
+      - "rhel-{{ ansible_distribution_major_version}}-server-openstack-8.0-rpms"
+      - "rhel-{{ ansible_distribution_major_version}}-server-openstack-9.0-rpms"
+      - "rhel-{{ ansible_distribution_major_version}}-server-openstack-10.0-rpms"
+      - "rhel-{{ ansible_distribution_major_version}}-server-openstack-11.0-rpms"
+      - "rhel-{{ ansible_distribution_major_version}}-server-openstack-13.0-rpms"
+
+- name: Enable OSP repository on RHEL
+  yum_repository:
+    name: "rhel-{{ ansible_distribution_major_version}}-server-openstack-12.0-rpms"
+    state: present
+  register: enabled_osp
+  ignore_errors: True
+  when: storage_cl_try_osp
+
+- name: Enable required packages for RDO on RHEL
+  yum_repository:
+    name: "{{ item }}"
+    state: present
+  when: not enabled_osp
+  with_list:
+      - rhel-7-server-optional-rpms
+      - rhel-7-server-extras-rpms
+      - rhel-7-server-rh-common-rpms
+
+- name: Install RDO repository on RHEL and Fedora
+  package:
+    name: https://repos.fedorapeople.org/repos/openstack/openstack-pike/rdo-release-pike-1.noarch.rpm
+    state: present
+  when: (storage_cl_try_osp and not enabled_osp) or ansible_distribution == "Fedora"
+
+- name: Install RDO respository on CentOS
+  package:
+    name: centos-release-openstack-pike
+    state: present
+  when: ansible_distribution == "CentOS"

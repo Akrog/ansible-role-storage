@@ -1,0 +1,131 @@
+# Copyright (c) 2018, Red Hat, Inc.
+# All Rights Reserved.
+#
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
+#
+#
+---
+# Setup the "Storage backend" which is an LVM VG
+# If we were using a real storage array this wouldn't be necessary
+- hosts: storage_controller
+  vars:
+    cldir: /home/vagrant/cinderlib
+  tasks:
+      - name: Create directories
+        file:
+          path: "{{ cldir }}/locks"
+          state: directory
+        become_user: vagrant
+      - name: Create backing file
+        command: truncate -s 10G cinder-volumes
+        args:
+            chdir: "{{ cldir }}"
+            creates: "{{ cldir }}/cinder-volumes"
+      - name: Get loopback device
+        shell: "losetup -l | awk '/cinder-volumes/ {print $1}'"
+        become: yes
+        changed_when: false
+        register: cl_loop_device_1
+      # NOTE(geguileo): This is just for a test, so it won't survive a reboot
+      - name: Create loopback device
+        command: losetup --show -f cinder-volumes
+        args:
+            chdir: "{{ cldir }}"
+        register: cl_loop_device_2
+        become: yes
+        when: cl_loop_device_1.stdout == ''
+      - name: Workaround because Ansible destroy registers when skipped
+        set_fact: cl_loop_device="{{ cl_loop_device_2.stdout if cl_loop_device_2.changed else cl_loop_device_1.stdout }}"
+      - name: Create VG
+        shell: "vgcreate cinder-volumes {{ cl_loop_device }} && touch {{ cldir }}/lvm.vgcreate"
+        args:
+            creates: "{{ cldir }}/lvm.vgcreate"
+        become: yes
+      - name: Scan VG
+        command: "vgscan --cache"
+        changed_when: false
+        become: yes
+
+
+# Configure the LVM backend on our controller node
+- hosts: storage_controller
+  vars:
+    storage_backends:
+        lvm:
+            volume_driver: 'cinder.volume.drivers.lvm.LVMVolumeDriver'
+            volume_group: 'cinder-volumes'
+            iscsi_protocol: 'iscsi'
+            iscsi_helper: 'lioadm'
+    storage_cinderlib_config:
+        persistence_config: {'storage': 'db', 'connection': 'sqlite:////home/vagrant/cinderlib/db.sqlite'}
+        locks_path: /home/vagrant/cinderlib
+    storage_cinderlib_consumer_config:
+        db_file: /home/vagrant/.consumer.sqlite
+  roles:
+      - { role: storage, node_type: controller }
+  tasks:
+      - name: Get stats
+        storage:
+            provider: cinderlib
+            backend: lvm
+            resource: backend
+            state: stats
+        register: stats
+
+      - debug:
+            msg: "Backend {{ stats.result.volume_backend_name }} from vendor {{ stats.result.vendor_name }} uses protocol {{ stats.result.storage_protocol }}"
+
+
+- hosts: storage_consumers
+  roles:
+      - { role: storage, node_type: consumer }
+  tasks:
+      - name: Create volume
+        storage:
+            provider: cinderlib
+            backend: lvm
+            resource: volume
+            state: present
+            name: mydisk
+            size: 1
+        register: vol
+      - debug:
+          msg: "Volume {{vol.id}} with {{vol.size}}GB created on {{vol.host}}"
+
+      - name: Connect volume by id
+        storage:
+            provider: cinderlib
+            backend: lvm
+            resource: volume
+            state: connected
+            id: "{{ vol.id }}"
+        register: conn
+
+      - debug:
+          msg: "Volume {{ vol.id }} attached to {{ conn.path }}"
+
+      - name: Disconnect volume by name
+        storage:
+            provider: cinderlib
+            backend: lvm
+            resource: volume
+            state: disconnected
+            name: mydisk
+
+      - name: Delete volume
+        storage:
+            provider: cinderlib
+            backend: lvm
+            resource: volume
+            state: absent
+            id: "{{ vol.id }}"

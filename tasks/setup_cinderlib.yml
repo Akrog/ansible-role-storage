@@ -1,0 +1,50 @@
+- name: Set repositories
+  include_tasks: setup_cinderlib_repos.yml
+  become: true
+
+# -----------------------------------------------------------------------------
+# INSTALL CINDER AND CINDERLIB
+#
+
+- name: Install Cinder package
+  package:
+    # We cannot use python-cinder because that doesn't set cinder-rtstool
+    name: openstack-cinder
+    state: present
+
+# python-pip comes from the respositories we've added
+- name: Install Pip package
+  package:
+    name: python-pip
+    state: present
+
+- name: Check if cinderlib is installed
+  shell: pip show cinderlib
+  ignore_errors: true
+  register: cinderlib_installed
+
+- name: Install Git (because we are installing cinderlib from github)
+  package:
+    name: git
+    state: present
+  when: cinderlib_installed.rc != 0
+
+- name: Install cinderlib (from github until next release)
+  pip:
+#   name: cinderlib
+    name: git+https://github.com/akrog/cinderlib.git@persistence
+    state: present
+  when: cinderlib_installed.rc != 0
+
+
+# -----------------------------------------------------------------------------
+# INSTALL VENDOR SPECIFIC DEPENDENCIES
+#
+
+- name: Install and setup driver specific dependencies
+  include_tasks: setup_cinderlib_driver_dependencies.yml
+  vars:
+    driver: "{{ backend.volume_driver | mandatory }}"
+  with_list: "{{ storage_backends.values() | list | mandatory }}"
+  loop_control:
+    loop_var: backend
