@@ -160,18 +160,15 @@ class Volume(Resource, storage_base.Volume):
         vs = self.backend.persistence.get_volumes(volume_id=params['id'],
                                                   volume_name=params['name'],
                                                   backend_name=self.backend.id)
-        if not vs:
-            if fail_not_found:
-                self.fail('Volume could not be found')
-            return None
-
         filtered_vs = [v for v in vs if self._matches(v, params)]
+
+        if not filtered_vs:
+            if fail_not_found:
+                self.fail('Volume could not be found with params %s' % params)
+            return None
 
         if len(filtered_vs) > 1:
             self.fail('Multiple volumes found')
-
-        if not filtered_vs:
-            self.fail('WTF: No match on %s for %s' % (vs, params))
 
         return filtered_vs[0]
 
