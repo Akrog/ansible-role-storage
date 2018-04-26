@@ -68,3 +68,5 @@ target/
 
 # Temp directory, for example for the LVM file, our custom config, etc.
 temp/
+
+examples/*.retry
