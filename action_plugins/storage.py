@@ -95,6 +95,7 @@ class DB(object):
 
     @staticmethod
     def _build_filters(filters):
+        filters = {k: v for k, v in filters.items() if v is not None}
         if not filters:
             return ''
         return ' WHERE ' + ' and '.join('%s=:%s' % (f, f)
@@ -234,10 +235,15 @@ class Resource(object):
         if ctrl:
             module_data = self._get_controller_data()
             module_name = self.provider_name + '_storage_controller'
+            if self._backend:
+                module_args.setdefault('backend', self._backend.name)
+                module_args.setdefault('provider', self._backend.provider)
         else:
             module_data, module_name = self.db.get_consumer(self.provider_name)
         module_args[STORAGE_DATA] = module_data
 
+        # If this is a controller operation called on consumer pass
+        # controller context
         if (ctrl and module_args.get('resource') != 'backend' and
                 self.backend().host != self._get_var('ansible_machine_id')):
             kwargs['context'] = self.context
@@ -248,17 +254,40 @@ class Resource(object):
     def task(self):
         return self.action_module._task
 
+    def _select_backend(self):
+        if self._backend:
+            return
+
+        provider = self.task.args.get('provider')
+        backend = self.task.args.get('backend')
+
+        backends = self.db._query('*', provider=provider, name=backend)
+
+        if not backends:
+            raise NotFound({'backend': backend, 'provider': provider})
+
+        if len(backends) == 1:
+            self._backend = backends[0]
+            return
+
+        for backend in backends:
+            if backend.provider == DEFAULT_PROVIDER:
+                self._backend = backend
+                return
+        raise NonUnique({'backend': backend, 'provider': provider})
+
     def backend(self):
-        # We don't use a property to let db.backend errors propagate
-        if not self._backend:
-            backend_name = self.task.args.get('backend')
-            self._backend = self.db.backend(backend_name,
-                                            self.provider_name)
+        self._select_backend()
         return self._backend
 
     @property
     def provider_name(self):
-        return self.task.args.get('provider', DEFAULT_PROVIDER)
+        provider = self.task.args.get('provider')
+        if provider:
+            return provider
+
+        self._select_backend()
+        return self._backend.provider
 
     def execute(self, task_vars):
         self.task_vars = task_vars
@@ -290,9 +319,6 @@ class Resource(object):
         return self.runner(args)
 
     def run(self):
-        if self.provider_name != 'cinderlib':
-            raise ValueError('Unknown provider %s' % self.provider_name)
-
         state_runner = getattr(self, self.task.args.get('state'),
                                self.default_state_run)
         return state_runner(self.task.args)
