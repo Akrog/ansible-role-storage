@@ -1,0 +1,12 @@
+- name: Set repositories
+  include_tasks: setup_openstack_repos.yml
+  become: true
+
+# -----------------------------------------------------------------------------
+# INSTALL CINDERCLIENT
+#
+
+- name: Install cinderclient package
+  package:
+    name: python2-cinderclient
+    state: present

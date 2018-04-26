@@ -1,5 +1,5 @@
 - name: Set repositories
-  include_tasks: setup_cinderlib_repos.yml
+  include_tasks: setup_openstack_repos.yml
   become: true
 
 # -----------------------------------------------------------------------------

@@ -1,0 +1,72 @@
+# Copyright (c) 2018, Red Hat, Inc.
+# All Rights Reserved.
+#
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
+#
+#
+---
+# Configure a backend that uses the default volume type in Cinder
+- hosts: storage_controller
+  vars:
+    storage_backends:
+        default:
+            provider: cinderclient
+            password: nomoresecret
+            auth_url: http://192.168.1.22/identity
+            project_name: demo
+            region_name: RegionOne
+            username: admin
+  roles:
+      - { role: storage, node_type: controller }
+  tasks:
+      - name: Get stats
+        storage:
+            resource: backend
+            state: stats
+        register: stats
+
+      - debug:
+            msg: "Backend {{ stats.result.volume_backend_name }} from vendor {{ stats.result.vendor_name }} uses protocol {{ stats.result.storage_protocol }}"
+
+
+- hosts: storage_consumers
+  roles:
+      - { role: storage, node_type: consumer }
+  tasks:
+      - name: Create volume
+        storage:
+            resource: volume
+            state: present
+            size: 1
+        register: vol
+      - debug:
+          msg: "Volume {{vol.id}} with {{vol.size}}GB created on {{vol.host}}"
+
+      - name: Connect volume
+        storage:
+            resource: volume
+            state: connected
+        register: conn
+
+      - debug:
+          msg: "Volume {{ vol.id }} attached to {{ conn.path }}"
+
+      - name: Disconnect volume
+        storage:
+            resource: volume
+            state: disconnected
+
+      - name: Delete volume
+        storage:
+            resource: volume
+            state: absent

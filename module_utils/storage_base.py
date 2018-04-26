@@ -74,7 +74,8 @@ class Resource(object):
         storage_data = cls._pop_param(common.STORAGE_DATA)
 
         specs = {'resource': {'choices': list(cls.RESOURCES.keys())},
-                 'provider': {'type': 'str', 'choices': ['cinderlib']},
+                 'provider': {'type': 'str', 'choices': ['cinderlib',
+                                                         'cinderclient']},
                  'backend': {'type': 'str'}}
 
         resource = params.get('resource')
