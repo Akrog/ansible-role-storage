@@ -184,7 +184,7 @@ class Volume(Resource, storage_base.Volume):
     @Resource.state
     def present(self, params):
         vol = self._get_volume(params)
-        result = {'skipped': True} if vol else {}
+        result = {'changed': not bool(vol)}
         if not vol:
             cparams = self._build_cinderclient_params(params)
             vol = self.backend.volumes.create(size=params['size'],
@@ -192,7 +192,6 @@ class Volume(Resource, storage_base.Volume):
                                               **cparams)
 
             self._wait(vol, ('available',), delete_on_error=True)
-            result['changed'] = True
 
         result.update(self._to_json(vol))
         return result
@@ -201,15 +200,14 @@ class Volume(Resource, storage_base.Volume):
     def absent(self, params):
         vol = self._get_volume(params)
 
-        if not vol:
-            return {'skipped': True}
+        if vol:
+            vol.delete()
+            try:
+                self._wait(vol, [])
+            except exceptions.NotFound as exc:
+                pass
 
-        vol.delete()
-        try:
-            self._wait(vol, [])
-        except exceptions.NotFound as exc:
-            pass
-        return {'changed': True}
+        return {'changed': bool(vol)}
 
     def _get_connection(self, volume, host):
         cs = self.backend.attachments.list(
@@ -227,15 +225,13 @@ class Volume(Resource, storage_base.Volume):
         host_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS,
                                    params['attached_host']))
         connection = self._get_connection(vol, host_uuid)
-        result = {'skipped': True} if connection else {}
+        result = {'changed': not bool(connection)}
         if connection:
             connection = connection.connection_info
         else:
             connection = self.backend.attachments.create(
                 vol.id, params['connector_dict'], host_uuid)
             connection = connection['connection_info']
-
-            result['changed'] = True
 
         # Returning the volume information allows consumer to disconnect even
         # if we pass different data on the task.
@@ -256,11 +252,10 @@ class Volume(Resource, storage_base.Volume):
                                    params['attached_host']))
         connection = self._get_connection(vol, host_uuid)
 
-        if not connection:
-            return {'skipped': True}
+        if connection:
+            self.backend.attachments.delete(connection.id)
 
-        self.backend.attachments.delete(connection.id)
-        return {'changed': True}
+        return {'changed': bool(connection)}
 
 
 def main():

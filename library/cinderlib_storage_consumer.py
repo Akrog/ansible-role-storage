@@ -62,7 +62,7 @@ def attach_volume(db, module):
     conn = _get_data(db, module)
     if conn:
         path = conn['device'].pop('path')
-        return {'skipped': True,
+        return {'changed': False,
                 'path': path,
                 'type': common.BLOCK,
                 'additional_data': conn['device']}
@@ -107,7 +107,7 @@ def attach_volume(db, module):
 def detach_volume(db, module):
     data = _get_data(db, module)
     if not data:
-        return {'skipped': True}
+        return {'changed': False}
 
     connector_dict = data['connector']
     conn_info = data[common.CONNECTION_INFO]

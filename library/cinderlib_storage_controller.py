@@ -169,26 +169,22 @@ class Volume(Resource, storage_base.Volume):
     @Resource.state
     def present(self, params):
         vol = self._get_volume(params)
-        result = {'skipped': True} if vol else {}
+        result = {'changed': not bool(vol)}
         if not vol:
             vol = self.backend.create_volume(size=params['size'],
                                              name=params['name'],
                                              id=params['id'],
                                              host=params['host'])
-            result['changed'] = True
-
         result.update(self._to_json(vol))
         return result
 
     @Resource.state
     def absent(self, params):
         vol = self._get_volume(params)
+        if vol:
+            vol.delete()
 
-        if not vol:
-            return {'skipped': True}
-
-        vol.delete()
-        return {'changed': True}
+        return {'changed': bool(vol)}
 
     def _get_connection(self, volume_id, host):
         cs = self.backend.persistence.get_connections(volume_id=volume_id)
@@ -203,11 +199,10 @@ class Volume(Resource, storage_base.Volume):
     def connected(self, params):
         vol = self._get_volume(params, fail_not_found=True)
         connection = self._get_connection(vol.id, params['attached_host'])
-        result = {'skipped': True} if connection else {}
+        result = {'changed': not bool(connection)}
         if not connection:
             connection = vol.connect(params['connector_dict'],
                                      attached_host=params['attached_host'])
-            result['changed'] = True
 
         # Returning the volume information allows consumer to disconnect even
         # if we pass different data on the task.
@@ -221,12 +216,10 @@ class Volume(Resource, storage_base.Volume):
     def disconnected(self, params):
         vol = self._get_volume(params, fail_not_found=True)
         connection = self._get_connection(vol.id, params['attached_host'])
+        if connection:
+            connection.disconnect()
 
-        if not connection:
-            return {'skipped': True}
-
-        connection.disconnect()
-        return {'changed': True}
+        return {'changed': bool(connection)}
 
 
 def main():
