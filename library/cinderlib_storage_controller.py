@@ -64,25 +64,27 @@ class Resource(storage_base.Resource):
 
 @Resource.register
 class Backend(Resource, storage_base.Backend):
-    PROVIDER_CONFIG_SPECS = {
-        'disable_logs': {'type': 'bool', 'default': True},
-        'use_stderr': {'type': 'bool', 'default': False},
-        'debug': {'type': 'bool', 'default': False},
-        'verbose': {'type': 'bool', 'default': False},
-        'db_file': {'type': 'path', 'default': None},
-        'locks_path': {'type': 'path', 'default': None},
-        'disable_sudo': {'type': 'bool', 'default': False},
-    }
-    BACKEND_CONFIG_SPECS = {
-        'volume_driver': {'type': 'str'},
-    }
-
     DEFAULT_PERSISTENCE = {
         'storage': 'db',
         'connection': 'sqlite:///' + os.path.join(HOME, 'mydb.sqlite'),
     }
     DEFAULT_LOCKS_PATH = os.path.join(HOME, 'cinderlib_locks')
     DEFAULT_DB_FILE = 'storage_cinderlib_consumer.sqlite'
+    PROVIDER_CONFIG_SPECS = {
+        'disable_logs': {'type': 'bool', 'default': True},
+        'use_stderr': {'type': 'bool', 'default': False},
+        'debug': {'type': 'bool', 'default': False},
+        'verbose': {'type': 'bool', 'default': False},
+        'db_file': {'type': 'path', 'default': DEFAULT_DB_FILE},
+        'locks_path': {'type': 'path', 'default': DEFAULT_LOCKS_PATH},
+        'persistence_config': {'type': 'dict',
+                               'default': DEFAULT_PERSISTENCE},
+        'disable_sudo': {'type': 'bool', 'default': False},
+    }
+    BACKEND_CONFIG_SPECS = {
+        'volume_driver': {'type': 'str'},
+    }
+
 
     @Resource.state
     def present(self, params):
@@ -96,16 +98,8 @@ class Backend(Resource, storage_base.Backend):
         provider_config = params[common.PROVIDER_CONFIG].copy()
 
         # Set consumer config
-        db_file = provider_config.pop('db_file', None)
-        if not db_file:
-            db_file = self.DEFAULT_DB_FILE
-
-        provider_config.setdefault('persistence_config',
-                                   self.DEFAULT_PERSISTENCE)
-
-        locks_path = provider_config.setdefault('locks_path',
-                                                self.DEFAULT_LOCKS_PATH)
-        self.makedirs(locks_path)
+        db_file = provider_config.pop('db_file')
+        self.makedirs(provider_config['locks_path'])
 
         storage_data = {common.PROVIDER_CONFIG: provider_config,
                         common.BACKEND_CONFIG: backend_config}
