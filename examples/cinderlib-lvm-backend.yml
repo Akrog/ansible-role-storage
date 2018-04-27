@@ -20,41 +20,14 @@
 - hosts: storage_controller
   vars:
     cldir: /home/vagrant/cinderlib
+    vg: cinder-volumes
   tasks:
       - name: Create directories
         file:
           path: "{{ cldir }}/locks"
           state: directory
         become_user: vagrant
-      - name: Create backing file
-        command: truncate -s 10G cinder-volumes
-        args:
-            chdir: "{{ cldir }}"
-            creates: "{{ cldir }}/cinder-volumes"
-      - name: Get loopback device
-        shell: "losetup -l | awk '/cinder-volumes/ {print $1}'"
-        become: yes
-        changed_when: false
-        register: cl_loop_device_1
-      # NOTE(geguileo): This is just for a test, so it won't survive a reboot
-      - name: Create loopback device
-        command: losetup --show -f cinder-volumes
-        args:
-            chdir: "{{ cldir }}"
-        register: cl_loop_device_2
-        become: yes
-        when: cl_loop_device_1.stdout == ''
-      - name: Workaround because Ansible destroy registers when skipped
-        set_fact: cl_loop_device="{{ cl_loop_device_2.stdout if cl_loop_device_2.changed else cl_loop_device_1.stdout }}"
-      - name: Create VG
-        shell: "vgcreate cinder-volumes {{ cl_loop_device }} && touch {{ cldir }}/lvm.vgcreate"
-        args:
-            creates: "{{ cldir }}/lvm.vgcreate"
-        become: yes
-      - name: Scan VG
-        command: "vgscan --cache"
-        changed_when: false
-        become: yes
+      - include_tasks: _create_lvm_backend.yml
 
 
 # Configure the LVM backend on our controller node
