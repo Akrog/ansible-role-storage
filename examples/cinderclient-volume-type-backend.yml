@@ -15,7 +15,10 @@
 #
 #
 ---
-# Configure a backend that uses a specific volume type in Cinder
+# Configure a backend that uses the Ceph volume type in Cinder.
+# Cinder must have the rbd_keyring_conf option set in the  backend
+# configuration section, otherwise it will only return the secret uuid used by
+# Nova and it will do us no good for non libvirt nodes.
 - hosts: storage_controller
   vars:
     storage_backends:
@@ -26,7 +29,7 @@
             project_name: demo
             region_name: RegionOne
             username: admin
-            volume_type: xtremio
+            volume_type: ceph
   roles:
       - { role: storage, node_type: controller }
   tasks:
@@ -40,7 +43,7 @@
             msg: "Backend {{ stats.result.volume_backend_name }} from vendor {{ stats.result.vendor_name }} uses protocol {{ stats.result.storage_protocol }}"
 
 
-- hosts: storage_consumer
+- hosts: storage_consumers
   roles:
       - { role: storage, node_type: consumer }
   tasks:

@@ -16,7 +16,9 @@
 #    under the License.
 #
 
+import functools
 import json
+import os
 import sqlite3
 
 # from ansible.module_utils.
@@ -25,37 +27,80 @@ from ansible.module_utils import common
 
 import six
 
+from os_brick import exception
 from os_brick.initiator import connector
+from os_brick.initiator import connectors
 from os_brick.privileged import rootwrap
+from oslo_concurrency import processutils as putils
+from oslo_utils import fileutils
 
 
-def _set_priv_helper(root_helper):
-    # utils.get_root_helper = lambda: root_helper
-    # volume_cmd.priv_context.init(root_helper=[root_helper])
+class RBDConnector(connectors.rbd.RBDConnector):
+    """"Connector class to attach/detach RBD volumes locally.
 
-    existing_bgcp = connector.get_connector_properties
-    existing_bcp = connector.InitiatorConnector.factory
+    OS-Brick's implementation covers only 2 cases:
 
-    def my_bgcp(*args, **kwargs):
-        if len(args):
-            args = list(args)
-            args[0] = root_helper
-        else:
-            kwargs['root_helper'] = root_helper
-        kwargs['execute'] = rootwrap.custom_execute
-        return existing_bgcp(*args, **kwargs)
+    - Local attachment on controller node.
+    - Returning a file object on non controller nodes.
 
-    def my_bgc(*args, **kwargs):
-        if len(args) >= 2:
-            args = list(args)
-            args[1] = root_helper
-        else:
-            kwargs['root_helper'] = root_helper
-        kwargs['execute'] = rootwrap.custom_execute
-        return existing_bcp(*args, **kwargs)
+    We need a third one, local attachment on non controller node.
+    """
+    def connect_volume(self, connection_properties):
+        # NOTE(e0ne): sanity check if ceph-common is installed.
+        try:
+            self._execute('which', 'rbd')
+        except putils.ProcessExecutionError:
+            raise exception.BrickException('ceph-common package not installed')
 
-    connector.get_connector_properties = my_bgcp
-    connector.InitiatorConnector.factory = staticmethod(my_bgc)
+        # Extract connection parameters and generate config file
+        try:
+            user = connection_properties['auth_username']
+            pool, volume = connection_properties['name'].split('/')
+            cluster_name = connection_properties.get('cluster_name')
+            monitor_ips = connection_properties.get('hosts')
+            monitor_ports = connection_properties.get('ports')
+            keyring = connection_properties.get('keyring')
+        except IndexError:
+            raise exception.BrickException('Malformed connection properties')
+
+        conf = self._create_ceph_conf(monitor_ips, monitor_ports,
+                                      str(cluster_name), user,
+                                      keyring)
+
+        # Map RBD volume if it's not already mapped
+        rbd_dev_path = self.get_rbd_device_name(pool, volume)
+        if (not os.path.islink(rbd_dev_path) or
+                not os.path.exists(os.path.realpath(rbd_dev_path))):
+            cmd = ['rbd', 'map', volume, '--pool', pool, '--conf', conf]
+            cmd += self._get_rbd_args(connection_properties)
+            self._execute(*cmd, root_helper=self._root_helper,
+                          run_as_root=True)
+
+        return {'path': os.path.realpath(rbd_dev_path),
+                'conf': conf,
+                'type': 'block'}
+
+    def check_valid_device(self, path, run_as_root=True):
+        """Verify an existing RBD handle is connected and valid."""
+        try:
+            self._execute('dd', 'if=' + path, 'of=/dev/null', 'bs=4096',
+                          'count=1', root_helper=self._root_helper,
+                          run_as_root=True)
+        except putils.ProcessExecutionError:
+            return False
+        return True
+
+    def disconnect_volume(self, connection_properties, device_info,
+                          force=False, ignore_errors=False):
+
+        pool, volume = connection_properties['name'].split('/')
+        conf_file = device_info['conf']
+        dev_name = self.get_rbd_device_name(pool, volume)
+        cmd = ['rbd', 'unmap', dev_name, '--conf', conf_file]
+        cmd += self._get_rbd_args(connection_properties)
+        self._execute(*cmd, root_helper=self._root_helper,
+                      run_as_root=True)
+        fileutils.delete_if_exists(conf_file)
 
 
 def attach_volume(db, module):
@@ -72,15 +117,11 @@ def attach_volume(db, module):
     connector_dict = params[common.CONNECTION_INFO]['connector']
     protocol = conn_info['driver_volume_type']
 
+    # NOTE(geguileo): afaik only remotefs uses connection info
     conn = connector.InitiatorConnector.factory(
-        protocol, 'sudo',
-        use_multipath=connector_dict['multipath'],
-        device_scan_attempts=params.get('scan_attemps', 3),
-        # NOTE(geguileo): afaik only remotefs uses the connection info
-        conn=connector_dict,
-        # NOTE(geguileo): RBD needs this to return a real device
-        do_local_attach=True)
-
+        protocol, 'sudo', user_multipath=connector_dict['multipath'],
+        device_scan_attempts=params.get('scan_attempts', 3),
+        conn=connector_dict)
     device = conn.connect_volume(conn_info['data'])
     try:
         unavailable = not conn.check_valid_device(device.get('path'))
@@ -113,14 +154,10 @@ def detach_volume(db, module):
     conn_info = data[common.CONNECTION_INFO]
     protocol = conn_info['driver_volume_type']
     device = data['device']
-
+    # NOTE(geguileo): afaik only remotefs uses connection info
     conn = connector.InitiatorConnector.factory(
-        protocol, 'sudo',
-        use_multipath=connector_dict['multipath'],
-        device_scan_attempts=3,
-        # NOTE(geguileo): afaik only remotefs uses the connection info
-        conn=connector_dict)
-
+        protocol, 'sudo', user_multipath=connector_dict['multipath'],
+        device_scan_attempts=3, conn=connector_dict)
     conn.disconnect_volume(conn_info['data'], device, force=False,
                            ignore_errors=False)
     _delete_attachment(db, module)
@@ -234,6 +271,43 @@ def node(module):
         multipath=module.params['multipath'],
         enforce_multipath=module.params['enforce_multipath'])
     return {common.STORAGE_DATA: {common.CONNECTOR_DICT: connector_dict}}
+
+
+def _set_priv_helper(root_helper):
+    # utils.get_root_helper = lambda: root_helper
+    # volume_cmd.priv_context.init(root_helper=[root_helper])
+
+    existing_bgcp = connector.get_connector_properties
+    existing_bcp = connector.InitiatorConnector.factory
+
+    def my_bgcp(*args, **kwargs):
+        if len(args):
+            args = list(args)
+            args[0] = root_helper
+        else:
+            kwargs['root_helper'] = root_helper
+        kwargs['execute'] = rootwrap.custom_execute
+        return existing_bgcp(*args, **kwargs)
+
+    def my_bgc(protocol, *args, **kwargs):
+        if len(args):
+            # args is a tuple and we cannot do assignments
+            args = list(args)
+            args[0] = root_helper
+        else:
+            kwargs['root_helper'] = root_helper
+        kwargs['execute'] = rootwrap.custom_execute
+
+        # OS-Brick's implementation for RBD is not good enough for us
+        if protocol == 'rbd':
+            factory = RBDConnector
+        else:
+            factory = functools.partial(existing_bcp, protocol)
+
+        return factory(*args, **kwargs)
+
+    connector.get_connector_properties = my_bgcp
+    connector.InitiatorConnector.factory = staticmethod(my_bgc)
 
 
 def main():
