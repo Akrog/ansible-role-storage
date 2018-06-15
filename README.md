@@ -1,177 +1,157 @@
-Storage
-=======
+<p align="center">
+  <img src ="./docs/_static/ansible_role_storage.png" />
+</p>
 
-The storage role allows you to manage and connect to a large number of storage
-solutions from different vendors using an abstracted common interface.  For
-example you could create a playbook to provision a volume, connect it to a
-host, format it and use it, and use the same playbook on an XtremIO array or a
-Ceph cluster just by changing the variables used for the configuration of the
-storage controller role.
+Ansible Storage Role
+====================
 
-In order to use this role effectively you must first understand some concepts
-like node types, providers, backends, resources, states, and identification of
-resources.
+[![Galaxy](https://img.shields.io/badge/galaxy-Akrog.storage-blue.svg?style=flat-square)](https://galaxy.ansible.com/Akrog/storage/)
 
-Under the storage role you'll find there are two node types, controller and
-consumer, this distinction reflects the differences in requirements for the
-actions performed by each of these nodes.  A controller node will perform all
-management operations like create, delete, extend, map, and unmap volumes for
-which will require access to the storage management network and may
-additionally require the installation of vendor specific tools or libraries to
-do its job.  On the consumer nodes we are only interested in connecting and
-disconnecting resources, so we may only require some standard packages such as
-iscsi-initiator-tools, but there are still some cases were we may require
-specific tools based on the connection type of the volumes, for example for
-ScaleIO storage.
+The Ansible Storage Role is a vendor agnostic abstraction providing automation
+for storage solutions and access provisioned resources.
 
-A provider is the Ansible module responsible of carrying out operations on the
-storage hardware, and one provider must support at least one specific hardware
-from a vendor, but it may as well support multiple vendors and a wide range of
-storage devices.
+Thanks to this abstraction it's now possible to write reusable playbooks that
+can run on any of the supported storage arrays.
 
-Even though there's only two providers at the moment, a large number of storage
-vendors and storage backends are supported, as the `cinderlib` provider
-leverages the Cinder code (Cinder is the OpenStack block storage service) to
-use all storage drivers directly without the need to run the Cinder services
-themselves (API, Scheduler, and Volume) and required support services (DBMS and
-message broker).
+The role will provide an abstraction for multiple storage types:
 
-The default implementation is great if we don't have an OpenStack deployment,
-but if we already have one we can also use it in our Ansible playbooks using
-the `cinderclient` provider to provide storage to nodes outside of the
-OpenStack ecosystem.
+- Block storage.
+- Shared filesystems.
+- Object storage.
 
-A backend describes a storage array by providing a specific configuration for a
-provider and is identified by a user chosen name.
+Use cases:
 
-Resources are the way to represent abstractions within the storage role, such
-as backends and volumes (snapshots and shares will follow), and resource states
-represent actions we want performed on these resources.
+- Automate provisioning of volumes for VMs managed via the
+  [virt Ansible module](
+  https://docs.ansible.com/ansible/latest/modules/virt_module.html).
+- Take periodical snapshots of provisioned volumes.
 
-The storage role is modestly smart about locating resources, so in most cases
-just a small amount of information is required to reference a resource.  For
-example, when deleting a volume, if we only have one backend and one existing
-volume associated to a host, then we don't need to provide a backend name, a
-volume name, or an id to address it for the purposes of connecting,
-disconnecting, or deleting it.
 
-Another important notion we have to remember is that the controller node is
-that the controller nodes must be setup before any consumer node and they are
-not meant to execute tasks (except the stats gathering) and should be accessed
-indirectly from the consumer nodes instead.
+Features
+--------
 
-Right now this role only supports the following operations:
+The Storage Role currently supports block storage and has abstracted the
+following operations.
 
-- Retrieve backend stats
+- Get *backend* stats
 - Create volumes
 - Delete volumes
 - Attach volumes
 - Detach volumes
 
-Even though only block devices are supported at the moment, we intend to
-include other resource types like filesystem shares and object storage.
 
-Requirements
-------------
+Concepts
+--------
 
-- Tested with Ansible >= 2.4.1 but other versions may also work.
-- Controller node will install the cinder package from the OSP repository if
-  available, and default to the RDO one if not.  It will also install the
-  cinderlib python package.
-- Consumer node will install os-brick from the OSP repository if available, and
-  default to RDO if not.
+The Storage Role includes support for over 80 block storage drivers out of the
+box, but this can be expanded creating a new storage provider.
+
+A provider is the Ansible module responsible of carrying out operations on the
+storage hardware.  Each provider must support at least one specific hardware
+from a vendor, but it may as well support more, like the default provider does.
+
+To expose the functionality of these providers, the Storage Role introduces the
+concept of *backends*.  A *backend* is constructed passing a specific
+configuration to a provider in order to manage a specific storage hardware.
+
+There are two types of nodes in the Storage Role, *controllers* and
+*consumers*.
+
+<p align="center">
+  <img src ="./docs/_static/ansible_diagram.svg" />
+</p>
+
+*Controllers* have access to the storage management network and can connect to
+the storage hardware management network to control it.  For example to create
+and export a volume.
+
+*Consumers* only need access to the storage data network in order to connect
+to the resources we have provisioned.  For example to connect a volume via
+iSCSI.
+
 
 Configuration
 -------------
 
-We must first set up the storage controllers, and they must provide the
-following configuration parameters:
+Before we can provision or use our storage, we need to setup the *controller*
+node.
 
-- `storage_backends`: A dictionary where the key will be the name of the
-  backend and the values will be a provider specific dictionary.  For the
-  cinderlib provider the configuration options are the same as the ones
-  provided in Cinder for the drivers.
+There are several configuration options that allow us to change default global
+configuration for a provider's *controller* and *consumer* modules.  For now
+we'll assume they have sensible defaults, so we'll only look at the
+`storage_backends` configuration variable passed to the Storage Role.
 
-- `storage_$PROVIDER_config`: This would be `storage_cinderlib_config` or
-  `storage_cinderclient_config`, and must contain the provider global
-  configuration as defined by the provider.  Default values can be found in
-  the "vars" directory.
+The `storage_backends` is a dictionary providing the configuration for all the
+*backends* we want a *controller* node to manage.  They keys of the dictionary
+will be the identifiers for the *backends*, and they must be unique.
 
-- `storage_$PROVIDER_consumer_config`: This would be
-  `storage_cinderlib_consumer_config`, since all existing providers use the
-  same consumer code, and sets global consumer configuration options as defined
-  by the provider.  Default values can be found in the "vars" directory.
+Example of how we can setup a node to manage an XtremIO array:
 
-Playbook example
-----------------
-
-Assuming we have a "controller" node with an LVM VG called cinder-volumes and a
-set of "consumer" nodes that want to attach iSCSI volumes do some operations on
-it and then detach and delete them, the following playbook would achieve this:
-
-```
-
+``` yml
 - hosts: storage_controller
   vars:
     storage_backends:
-        lvm:
-            volume_driver: 'cinder.volume.drivers.lvm.LVMVolumeDriver'
-            volume_group: 'cinder-volumes'
-            iscsi_protocol: 'iscsi'
-            iscsi_helper: 'lioadm'
+      xtremio:
+        volume_driver: cinder.volume.drivers.dell_emc.xtremio.XtremIOISCSIDriver
+        san_ip: w.x.y.z
+        xtremio_cluster_name: CLUSTER-NAME
+        san_login: admin
+        san_password: nomoresecrets
   roles:
-      - { role: storage, node_type: controller }
+      - {role: storage, node_type: controller}
+```
 
+Example
+-------
+
+Now that we have configured the *controller* node, we can start using the
+*backend*, for example to provision and attach a new volume for each of our
+consumer nodes:
+
+``` yml
 - hosts: storage_consumers
   roles:
-      - { role: storage, node_type: consumer }
+      - {role: storage, node_type: consumer}
   tasks:
       - name: Create volume
         storage:
             resource: volume
             state: present
             size: 1
-        register: vol
 
       - name: Connect volume
         storage:
             resource: volume
             state: connected
-        register: conn
-
-      - debug:
-          msg: "Volume {{ vol.id }} attached to {{ conn.path }}"
-
-      - name: Disconnect volume
-        storage:
-            resource: volume
-            state: disconnected
-
-      - name: Delete volume
-        storage:
-            resource: volume
-            state: absent
 ```
 
-A descriptive explanation of above playbook is:
+Getting started
+---------------
 
-- Initialize the controller node: Installs required libraries on the controller
-- For each consumer node:
-  - Install required libraries on the consumer node
-  - Create a volume: Created on the controller and associated to consumer
-  - Attach the volume created for that node:
-    - Controller node maps the volume to the node (other nodes can't connect)
-    - Consumer uses iSCSI initiator to attach the volume
-  - Display where the volume has been attached
-  - Detach the volume:
-    - Consumer detaches the volume
-    - Controller unmaps the volume
+Let's get you started on running your first Storage playbook.
 
-At the time of this writing the consumer role can't auto detect dependencies
-based on the connection type of the backends, though this may change in the
-future, so any connection specific packages to connect volumes, such as
-`iscsi-initiator-utils`, `device-mapper-multipath`, `ceph-common`, etc., need
-to be already installed in the system or added via tasks in the playbook.
+First, install the role.
 
-For additional examples please refer to the playbooks in the "examples"
-directory.
+``` bash
+$ ansible-galaxy install Akrog.storage
+```
+
+Create the inventory file `inventory`:
+
+```
+[storage_controller]
+192.168.1.20
+
+[storage_consumer]
+192.168.1.20
+192.168.1.21
+```
+
+
+
+Then run the role:
+
+``` bash
+$ cd ~/.ansible/roles/Akrog.storage/example
+$ ansible-playbook lvm-backend.yml -i inventory
+```
