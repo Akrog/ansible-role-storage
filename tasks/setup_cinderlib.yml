@@ -18,23 +18,11 @@
     name: python-pip
     state: present
 
-- name: Check if cinderlib is installed
-  shell: pip show cinderlib
-  ignore_errors: true
-  register: cinderlib_installed
-
-- name: Install Git (because we are installing cinderlib from github)
-  package:
-    name: git
-    state: present
-  when: cinderlib_installed.rc != 0
-
-- name: Install cinderlib (from github until next release)
+- name: Install cinderlib
   pip:
-#   name: cinderlib
-    name: git+https://github.com/akrog/cinderlib.git@persistence
+    name: cinderlib
+    version: 0.2.1
     state: present
-  when: cinderlib_installed.rc != 0
 
 
 # -----------------------------------------------------------------------------

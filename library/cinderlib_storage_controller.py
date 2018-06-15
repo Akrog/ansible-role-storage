@@ -85,7 +85,6 @@ class Backend(Resource, storage_base.Backend):
         'volume_driver': {'type': 'str'},
     }
 
-
     @Resource.state
     def present(self, params):
         if not params.get('backend'):
@@ -186,19 +185,16 @@ class Volume(Resource, storage_base.Volume):
 
         return {'changed': bool(vol)}
 
-    def _get_connection(self, volume_id, host):
-        cs = self.backend.persistence.get_connections(volume_id=volume_id)
-
-        for c in cs:
+    def _get_connection(self, volume, host):
+        for c in volume.connections:
             if c.attached_host == host:
                 return c
-
         return None
 
     @Resource.state
     def connected(self, params):
         vol = self._get_volume(params, fail_not_found=True)
-        connection = self._get_connection(vol.id, params['attached_host'])
+        connection = self._get_connection(vol, params['attached_host'])
         result = {'changed': not bool(connection)}
         if not connection:
             connection = vol.connect(params['connector_dict'],
@@ -215,7 +211,7 @@ class Volume(Resource, storage_base.Volume):
     @Resource.state
     def disconnected(self, params):
         vol = self._get_volume(params, fail_not_found=True)
-        connection = self._get_connection(vol.id, params['attached_host'])
+        connection = self._get_connection(vol, params['attached_host'])
         if connection:
             connection.disconnect()
 
