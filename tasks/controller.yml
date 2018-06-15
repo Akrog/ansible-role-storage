@@ -21,10 +21,6 @@
 - name: Remove duplicates from enabled providers
   set_fact: storage_enabled_providers="{{ storage_enabled_providers | unique | list }}"
 
-- name: Set provider setup defaults if not present
-  include_vars: "{{ item }}_defaults.yml"
-  with_list: "{{ storage_enabled_providers }}"
-
 - name: Setup providers
   include_tasks: "setup_{{ item }}.yml"
   vars:
