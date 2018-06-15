@@ -1,0 +1,120 @@
+# Copyright (c) 2018, Red Hat, Inc.
+# All Rights Reserved.
+#
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
+#
+#
+---
+# =============================================================================
+# The example sets up a controller node with the LVM backend that uses a Volume
+# Group created on a loop.
+# Then creates a volume for each consumer node and attaches via iSCSI, then
+# disconnects and deletes the volume.
+# =============================================================================
+
+#------------------------------------------------------------------------------
+# Setup an LVM VG that will be used as the "Storage backend"
+# If we were using a real storage array this wouldn't be necessary
+#------------------------------------------------------------------------------
+- hosts: storage_controller
+  vars:
+    cldir: .
+    vg: cinder-volumes
+  tasks:
+      - name: Create LVM backing file
+        command: "truncate -s 10G {{vg}}"
+        args:
+            creates: "{{cldir}}/{{vg}}"
+
+      - shell: "losetup -l | awk '/{{vg}}/ {print $1}'"
+        become: yes
+        changed_when: false
+        register: existing_loop_device
+
+      - name: "Create loopback device {{vg}}"
+        command: "losetup --show -f {{cldir}}/{{vg}}"
+        become: yes
+        register: new_loop_device
+        when: existing_loop_device.stdout == ''
+       # Workaround because Ansible destroys registers when skipped
+      - set_fact: loop_device="{{ new_loop_device.stdout if new_loop_device.changed else existing_loop_device.stdout }}"
+
+      - name: "Create VG {{vg}}"
+        shell: "vgcreate {{vg}} {{loop_device}} && touch {{cldir}}/lvm.vgcreate"
+        args:
+            creates: "{{cldir}}/lvm.vgcreate"
+        become: yes
+
+      - command: "vgscan --cache"
+        changed_when: false
+        become: yes
+
+
+#------------------------------------------------------------------------------
+# Setup the controller storage role on a node to use the LVM VG
+#------------------------------------------------------------------------------
+- hosts: storage_controller
+  vars:
+    storage_backends:
+        lvm:
+            volume_driver: 'cinder.volume.drivers.lvm.LVMVolumeDriver'
+            volume_group: 'cinder-volumes'
+            iscsi_protocol: 'iscsi'
+            iscsi_helper: 'lioadm'
+  roles:
+      - {role: storage, node_type: controller}
+  tasks:
+      - name: Get stats
+        storage:
+            resource: backend
+            state: stats
+        register: stats
+
+      - debug:
+            msg: "Backend {{stats.result.volume_backend_name}} from vendor {{stats.result.vendor_name}} uses protocol {{stats.result.storage_protocol}}"
+
+
+#------------------------------------------------------------------------------
+# Use configured backend in the consumer nodes.
+# There's only volume per node, so there's no need to identify it on the tasks.
+#------------------------------------------------------------------------------
+- hosts: storage_consumers
+  roles:
+      - {role: storage}
+  tasks:
+      - name: Create volume
+        storage:
+            resource: volume
+            state: present
+            size: 1
+        register: vol
+      - debug:
+          msg: "Volume {{vol.id}} with {{vol.size}}GB created on {{vol.host}}"
+
+      - name: Connect volume
+        storage:
+            resource: volume
+            state: connected
+        register: conn
+      - debug:
+          msg: "Volume {{vol.id}} attached to {{conn.path}}"
+
+      - name: Disconnect volume
+        storage:
+            resource: volume
+            state: disconnected
+
+      - name: Delete volume
+        storage:
+            resource: volume
+            state: absent
