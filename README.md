@@ -134,13 +134,24 @@ Getting started
 
 Let's get you started on running your first Storage playbook.
 
-First, install the role.
+Unlike most real use cases, our example doesn't use a real Storage System.  The
+playbook first creates an LVM Volume Group backed by a device loop.  Using this
+VG we can create volumes and export them via iSCSI using the LIO target.
+
+The playbook will setup all required packages on the controller and proceed to
+set up the storage (LVM VG).  Then, for each consumer node, it will create a
+volume, attach it to its consumer node, detach it, and finally delete the
+volume.  So if our inventory has 2 consumer nodes, we'll create 2 volumes and
+attach one to a node.
+
+To run the playbook we'll first need to install the role.
 
 ``` bash
 $ ansible-galaxy install Akrog.storage
 ```
 
-Create the inventory file `inventory`:
+Then we'll create the inventory file `inventory` with the host that will act as
+the controller, and all the nodes that will be attaching volumes.
 
 ```
 [storage_controller]
@@ -151,9 +162,7 @@ Create the inventory file `inventory`:
 192.168.1.21
 ```
 
-
-
-Then run the role:
+Once we have everything set up, we can go ahead and run the role:
 
 ``` bash
 $ cd ~/.ansible/roles/Akrog.storage/example
