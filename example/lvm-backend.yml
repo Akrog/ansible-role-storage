@@ -16,17 +16,17 @@
 #
 ---
 # =============================================================================
-# The example sets up a controller node with the LVM backend that uses a Volume
-# Group created on a loop.
-# Then creates a volume for each consumer node and attaches via iSCSI, then
-# disconnects and deletes the volume.
+# The example sets up a single node controller and consumer node with the LVM
+# backend that uses a Volume Group created on a loop.
+# Then creates a volume, attaches via iSCSI presenting the device that has been
+# created, and finally disconnects and deletes the volume.
 # =============================================================================
 
 #------------------------------------------------------------------------------
 # Setup an LVM VG that will be used as the "Storage backend"
 # If we were using a real storage array this wouldn't be necessary
 #------------------------------------------------------------------------------
-- hosts: storage_controller
+- hosts: all
   vars:
     cldir: .
     vg: cinder-volumes
@@ -61,9 +61,10 @@
 
 
 #------------------------------------------------------------------------------
-# Setup the controller storage role on a node to use the LVM VG
+# Setup the controller storage role on a node to use the LVM VG and use the
+# storage on the node.
 #------------------------------------------------------------------------------
-- hosts: storage_controller
+- hosts: all
   vars:
     storage_backends:
         lvm:
@@ -71,8 +72,11 @@
             volume_group: 'cinder-volumes'
             iscsi_protocol: 'iscsi'
             iscsi_helper: 'lioadm'
+
   roles:
       - {role: storage, node_type: controller}
+      - {role: storage, node_type: consumer}
+
   tasks:
       - name: Get stats
         storage:
@@ -83,15 +87,6 @@
       - debug:
             msg: "Backend {{stats.result.volume_backend_name}} from vendor {{stats.result.vendor_name}} uses protocol {{stats.result.storage_protocol}}"
 
-
-#------------------------------------------------------------------------------
-# Use configured backend in the consumer nodes.
-# There's only volume per node, so there's no need to identify it on the tasks.
-#------------------------------------------------------------------------------
-- hosts: storage_consumers
-  roles:
-      - {role: storage}
-  tasks:
       - name: Create volume
         storage:
             resource: volume
