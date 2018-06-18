@@ -7,11 +7,12 @@ Ansible Storage Role
 
 [![Galaxy](https://img.shields.io/badge/galaxy-Akrog.storage-blue.svg?style=flat-square)](https://galaxy.ansible.com/Akrog/storage/)
 
-The Ansible Storage Role is a vendor agnostic abstraction providing automation
-for storage solutions and access provisioned resources.
+The Ansible Storage Role is a vendor agnostic abstraction providing infrastructure 
+administrators with automation for storage solutions and to access provisioned 
+resources.
 
 Thanks to this abstraction it's now possible to write reusable playbooks that
-can run on any of the supported storage arrays.
+can automate tasks on any of the supported storage arrays.
 
 The role will provide an abstraction for multiple storage types:
 
@@ -21,9 +22,12 @@ The role will provide an abstraction for multiple storage types:
 
 Use cases:
 
-- Automate provisioning of volumes for VMs managed via the
-  [virt Ansible module](
-  https://docs.ansible.com/ansible/latest/modules/virt_module.html).
+- Automate provisioning of volumes for:
+  - Bare metal hosts.
+  - VMs managed via the [virt Ansible module](
+    https://docs.ansible.com/ansible/latest/modules/virt_module.html).
+  - VMs managed on oVirt, OpenStack and VMWare.
+  - Cloud providers.
 - Take periodical snapshots of provisioned volumes.
 
 
