@@ -7,9 +7,9 @@ Ansible Storage Role
 
 [![Galaxy](https://img.shields.io/badge/galaxy-Akrog.storage-blue.svg?style=flat-square)](https://galaxy.ansible.com/Akrog/storage/)
 
-The Ansible Storage Role is a vendor agnostic abstraction providing infrastructure 
-administrators with automation for storage solutions and to access provisioned 
-resources.
+The Ansible Storage Role is a vendor agnostic abstraction providing
+infrastructure administrators with automation for storage solutions and to
+access provisioned resources.
 
 Thanks to this abstraction it's now possible to write reusable playbooks that
 can automate tasks on any of the supported storage arrays.
@@ -50,7 +50,7 @@ Concepts
 The Storage Role includes support for over 80 block storage drivers out of the
 box, but this can be expanded creating a new storage provider.
 
-A provider is the Ansible module responsible of carrying out operations on the
+A provider is the Ansible module responsible for carrying out operations on the
 storage hardware.  Each provider must support at least one specific hardware
 from a vendor, but it may as well support more, like the default provider does.
 
@@ -65,9 +65,9 @@ There are two types of nodes in the Storage Role, *controllers* and
   <img src ="./docs/_static/ansible_diagram.svg" />
 </p>
 
-*Controllers* have access to the storage management network and can connect to
-the storage hardware management network to control it.  For example to create
-and export a volume.
+*Controllers* have access to the storage management network and know how to
+connect to the storage hardware management interface and control it.  For
+example to create and export a volume.
 
 *Consumers* only need access to the storage data network in order to connect
 to the resources we have provisioned.  For example to connect a volume via
@@ -122,11 +122,16 @@ consumer nodes:
             resource: volume
             state: present
             size: 1
+            register: vol
 
       - name: Connect volume
         storage:
             resource: volume
             state: connected
+            register: conn
+
+      - debug:
+            msg: "Volume {{ vol.id }} attached to {{ conn.path }}"
 ```
 
 Getting started
@@ -138,11 +143,14 @@ Unlike most real use cases, our example doesn't use a real Storage System.  The
 playbook first creates an LVM Volume Group backed by a device loop.  Using this
 VG we can create volumes and export them via iSCSI using the LIO target.
 
-The playbook will setup all required packages on the controller and proceed to
-set up the storage (LVM VG).  Then, for each consumer node, it will create a
-volume, attach it to its consumer node, detach it, and finally delete the
-volume.  So if our inventory has 2 consumer nodes, we'll create 2 volumes and
-attach one to a node.
+The playbook will install all required packages on the controller and proceed
+to set up the storage (LVM VG).  Then it will create a volume, attach it to the
+node, present the device where it has been attached, detach it, and finally
+delete the volume.
+
+Running the example playbook will install packages in the system and present a
+VG to our system, so we recommend to either run these commands inside a VM or
+change the value of the IP variable to the IP of a VM.
 
 To run the playbook we'll first need to install the role.
 
@@ -150,21 +158,15 @@ To run the playbook we'll first need to install the role.
 $ ansible-galaxy install Akrog.storage
 ```
 
-Then we'll create the inventory file `inventory` with the host that will act as
-the controller, and all the nodes that will be attaching volumes.
+Once we have installed the role we can go ahead and run the role.
 
-```
-[storage_controller]
-192.168.1.20
-
-[storage_consumer]
-192.168.1.20
-192.168.1.21
-```
-
-Once we have everything set up, we can go ahead and run the role:
+There are many ways to run a playbook, for simplicity here we'll just
+illustrate how to run it on the local host using our user and assuming we have
+`sshd` enabled, our own `~/.ssh/id_rsa` in the `~/.ssh/authorized_keys` file,
+and our user can run `sudo` commands without password.
 
 ``` bash
+$ IP=127.0.0.1
 $ cd ~/.ansible/roles/Akrog.storage/example
-$ ansible-playbook lvm-backend.yml -i inventory
+$ ansible-playbook -i $IP, --user `whoami` --private-key ~/.ssh/id_rsa lvm-backend.yml
 ```
