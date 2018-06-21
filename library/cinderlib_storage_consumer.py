@@ -140,7 +140,7 @@ def attach_volume(db, module):
     _save_attachment(db, params, data)
 
     return {'path': device['path'],
-            'type': 0,
+            'type': common.BLOCK,
             'additional_data': additional_data,
             'changed': True}
 
