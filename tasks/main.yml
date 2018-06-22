@@ -13,10 +13,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-# - name: Set run_id
-# set_fact: "ansible_local.storage_run_id={{ 999999999999999999999 | random | string + (lookup('pipe', 'date +%s%N')) | to_uuid }}"
-# when: ansible_local.storage_run_id is undefined
-
 - name: Setup storage controller node
   include_tasks: controller.yml
   when: node_type == 'controller'
