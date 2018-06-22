@@ -67,6 +67,29 @@ command line::
    > --find_multipaths y
    # systemctl enable --now multipathd
 
+Or as Ansible tasks:
+
+.. code-block:: yaml
+
+   - name: Install multipath package
+     package:
+       name: device-mapper-multipath
+       state: present
+    become: yes
+
+   - name: Create configuration
+     command: mpathconf --enable --with_multipathd y --user_friendly_names n --find_multipaths y
+     args:
+         creates: /etc/multipath.conf
+    become: yes
+
+   - name: Start and enable on boot the multipath daemon
+     service:
+         name: multipathd
+         state: started
+         enabled: yes
+    become: yes
+
 iSCSI
 ~~~~~
 
@@ -78,6 +101,28 @@ package if it's not already there::
    > && echo InitiatorName=`iscsi-iname` > /etc/iscsi/initiatorname.iscsi
    # systemctl enable --now iscsid
 
+Or as Ansible tasks:
+
+.. code-block:: yaml
+
+   - name: Install iSCSI package
+     package:
+       name: iscsi-initiator-utils
+       state: present
+    become: yes
+
+   - name: Create initiator name
+     shell: echo InitiatorName=`iscsi-iname` > /etc/iscsi/initiatorname.iscsi
+     args:
+         creates: /etc/iscsi/initiatorname.iscsi
+    become: yes
+
+   - name: Start and enable on boot the iSCSI initiator
+     service:
+         name: iscsid
+         state: started
+         enabled: yes
+    become: yes
 
 Ceph/RBD
 ~~~~~~~~
