@@ -14,10 +14,21 @@
 #    under the License.
 #
 
+import collections
+import datetime
 import json
 
 from ansible.module_utils import basic
 from ansible.module_utils import common
+
+
+class _SetEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, collections.Set):
+            return list(obj)
+        elif isinstance(obj, datetime.datetime):
+            return obj.isoformat()
+        return super(_SetEncoder, self).default(obj)
 
 
 class Resource(object):
@@ -34,7 +45,7 @@ class Resource(object):
         params = json.loads(basic._ANSIBLE_ARGS.decode('utf-8'))
         param = params['ANSIBLE_MODULE_ARGS'].pop(name, None)
         basic._ANSIBLE_ARGS = json.dumps(params, encoding='utf-8',
-                                         cls=basic._SetEncoder)
+                                         cls=_SetEncoder)
         return param
 
     @staticmethod
