@@ -5,7 +5,7 @@
 Ansible Storage Role
 ====================
 
-[![Docs](https://readthedocs.org/projects/ansible-storage/badge/?version=default)](https://ansible-storage.readthedocs.io)
+[![Docs](https://readthedocs.org/projects/ansible-storage/badge/?version=master)](https://ansible-storage.readthedocs.io)
 [![Galaxy](https://img.shields.io/badge/galaxy-Akrog.storage-blue.svg?style=flat-square)](https://galaxy.ansible.com/Akrog/storage/)
 
 The Ansible Storage Role is a vendor agnostic abstraction providing
