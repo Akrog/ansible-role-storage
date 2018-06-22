@@ -169,5 +169,5 @@ and our user can run `sudo` commands without password.
 ``` bash
 $ IP=127.0.0.1
 $ cd ~/.ansible/roles/Akrog.storage/example
-$ ansible-playbook -i $IP, --user `whoami` --private-key ~/.ssh/id_rsa lvm-backend.yml
+$ ansible-playbook -i $IP, lvm-backend.yml
 ```
