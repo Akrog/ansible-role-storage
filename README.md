@@ -74,6 +74,44 @@ example to create and export a volume.
 to the resources we have provisioned.  For example to connect a volume via
 iSCSI.
 
+Getting started
+---------------
+
+Let's get you started on running your first Storage playbook.
+
+Unlike most real use cases, our example doesn't use a real Storage System.  The
+playbook first creates an LVM Volume Group (VG) backed by a device loop.  Using
+this VG we can create volumes and export them via iSCSI using the LIO target.
+
+The playbook will not differentiate between *controller* and *consumer* nodes,
+deploying everything in a single node.
+
+After setting up the LVM VG the playbook will create a volume, attach it to the
+node via iSCSI, display a message with the device where it has been attached,
+detach it, and finally delete the volume.
+
+Running the example playbook will install packages in the system and present a
+VG to the system.  We recommend to either run these commands inside a VM or
+change the value of the IP variable to the IP of a VM.
+
+To run the playbook we'll first need to install the role.
+
+``` bash
+$ ansible-galaxy install Akrog.storage
+```
+
+Once we have installed the role we can go ahead and run the role.
+
+There are many ways to run a playbook, for simplicity here we'll just
+illustrate how to run it on the local host using our user and assuming we have
+`sshd` enabled, our own `~/.ssh/id_rsa` in the `~/.ssh/authorized_keys` file,
+and our user can run `sudo` commands without password.
+
+``` bash
+$ IP=127.0.0.1
+$ cd ~/.ansible/roles/Akrog.storage/example
+$ ansible-playbook -i $IP, lvm-backend.yml
+```
 
 Configuration
 -------------
@@ -133,41 +171,4 @@ consumer nodes:
 
       - debug:
             msg: "Volume {{ vol.id }} attached to {{ conn.path }}"
-```
-
-Getting started
----------------
-
-Let's get you started on running your first Storage playbook.
-
-Unlike most real use cases, our example doesn't use a real Storage System.  The
-playbook first creates an LVM Volume Group backed by a device loop.  Using this
-VG we can create volumes and export them via iSCSI using the LIO target.
-
-The playbook will install all required packages on the controller and proceed
-to set up the storage (LVM VG).  Then it will create a volume, attach it to the
-node, present the device where it has been attached, detach it, and finally
-delete the volume.
-
-Running the example playbook will install packages in the system and present a
-VG to our system, so we recommend to either run these commands inside a VM or
-change the value of the IP variable to the IP of a VM.
-
-To run the playbook we'll first need to install the role.
-
-``` bash
-$ ansible-galaxy install Akrog.storage
-```
-
-Once we have installed the role we can go ahead and run the role.
-
-There are many ways to run a playbook, for simplicity here we'll just
-illustrate how to run it on the local host using our user and assuming we have
-`sshd` enabled, our own `~/.ssh/id_rsa` in the `~/.ssh/authorized_keys` file,
-and our user can run `sudo` commands without password.
-
-``` bash
-$ IP=127.0.0.1
-$ cd ~/.ansible/roles/Akrog.storage/example
-$ ansible-playbook -i $IP, lvm-backend.yml
 ```
