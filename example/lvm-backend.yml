@@ -30,6 +30,7 @@
   vars:
     cldir: .
     vg: cinder-volumes
+    ansible_become: yes
   tasks:
       - name: Create LVM backing file
         command: "truncate -s 10G {{vg}}"
@@ -37,13 +38,11 @@
             creates: "{{cldir}}/{{vg}}"
 
       - shell: "losetup -l | awk '/{{vg}}/ {print $1}'"
-        become: yes
         changed_when: false
         register: existing_loop_device
 
       - name: "Create loopback device {{vg}}"
         command: "losetup --show -f {{cldir}}/{{vg}}"
-        become: yes
         register: new_loop_device
         when: existing_loop_device.stdout == ''
        # Workaround because Ansible destroys registers when skipped
@@ -53,11 +52,24 @@
         shell: "vgcreate {{vg}} {{loop_device}} && touch {{cldir}}/lvm.vgcreate"
         args:
             creates: "{{cldir}}/lvm.vgcreate"
-        become: yes
 
       - command: "vgscan --cache"
         changed_when: false
-        become: yes
+
+      - name: Install iSCSI package
+        package:
+          name: iscsi-initiator-utils
+          state: present
+
+      - name: Create initiator name
+        shell: echo InitiatorName=`iscsi-iname` > /etc/iscsi/initiatorname.iscsi
+        args:
+            creates: /etc/iscsi/initiatorname.iscsi
+
+      - name: Start iSCSI initiator
+        service:
+            name: iscsid
+            state: started
 
 
 #------------------------------------------------------------------------------
