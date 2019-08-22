@@ -12,17 +12,19 @@
     name: openstack-cinder
     state: present
 
-# python-pip comes from the respositories we've added
-- name: Install Pip package
+- name: Install Cinderlib package from URL
   package:
-    name: python-pip
+    name: python2-cinderlib
     state: present
+  when: not enabled_osp
 
-- name: Install cinderlib
-  pip:
-    name: cinderlib
-    version: 0.2.1
+- name: Install Cinderlib package from URL
+  yum:
+    # Install from RDO's URL. We can do it because the spec has
+    # "Requires: openstack-cinder >= 12.0.0"
+    name: http://mirror.centos.org/centos/7/cloud/x86_64/openstack-stein/python2-cinderlib-0.9.0-1.el7.noarch.rpm
     state: present
+  when: enabled_osp
 
 
 # -----------------------------------------------------------------------------

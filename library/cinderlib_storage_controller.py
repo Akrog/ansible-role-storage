@@ -135,12 +135,14 @@ class Backend(Resource, storage_base.Backend):
 @Resource.register
 class Volume(Resource, storage_base.Volume):
     FIELDS_MAP = {'id': 'id', 'name': 'name', 'size': 'size', 'host': 'host',
-                  'backend': 'availability_zone'}
+                  'cluster_name': 'cluster_name'}
 
     @classmethod
     def _to_json(cls, vol):
         res = {k: getattr(vol, v) for k, v in cls.FIELDS_MAP.items()}
         res['type'] = 'volume'
+        # Since cluster name and backend name are the same...
+        res['backend'] = vol.cluster_name.split('@')[0]
         return res
 
     def _matches(self, vol, params):
@@ -165,20 +167,33 @@ class Volume(Resource, storage_base.Volume):
 
         return filtered_vs[0]
 
+    def _prepare_params(self, params):
+        new_params = params.copy()
+        pool_name = self.backend.pool_names[0]
+        new_params['host'] = '%s@%s#%s' % (params['host'],
+                                           self.backend.id,
+                                           pool_name)
+        new_params['cluster_name'] = '%s@%s#%s' % (self.backend.id,
+                                                   self.backend.id,
+                                                   pool_name)
+        return new_params
+
     @Resource.state
     def present(self, params):
+        # TODO: Add support for pools
+        params = self._prepare_params(params)
         vol = self._get_volume(params)
         result = {'changed': not bool(vol)}
         if not vol:
-            vol = self.backend.create_volume(size=params['size'],
-                                             name=params['name'],
-                                             id=params['id'],
-                                             host=params['host'])
+            vol = self.backend.create_volume(
+                size=params['size'], name=params['name'], id=params['id'],
+                host=params['host'], cluster_name=params['cluster_name'])
         result.update(self._to_json(vol))
         return result
 
     @Resource.state
     def absent(self, params):
+        params = self._prepare_params(params)
         vol = self._get_volume(params)
         if vol:
             vol.delete()
@@ -193,6 +208,7 @@ class Volume(Resource, storage_base.Volume):
 
     @Resource.state
     def connected(self, params):
+        params = self._prepare_params(params)
         vol = self._get_volume(params, fail_not_found=True)
         connection = self._get_connection(vol, params['attached_host'])
         result = {'changed': not bool(connection)}
@@ -210,6 +226,7 @@ class Volume(Resource, storage_base.Volume):
 
     @Resource.state
     def disconnected(self, params):
+        params = self._prepare_params(params)
         vol = self._get_volume(params, fail_not_found=True)
         connection = self._get_connection(vol, params['attached_host'])
         if connection:

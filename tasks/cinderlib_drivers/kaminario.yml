@@ -13,6 +13,12 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+# python-pip comes from the respositories we've added
+- name: Install Pip package
+  package:
+    name: python-pip
+    state: present
+
 - name: Install krest Python package
   # Pip module can't handle >= version so we run it manually
   command: pip install krest>=1.3.0

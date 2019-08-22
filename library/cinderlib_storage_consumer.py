@@ -174,6 +174,7 @@ def _validate_volume(module):
                  id={'type': 'str'},
                  size={'type': 'int'},
                  host={'type': 'str', 'default': ''},
+                 cluster_name={'type': 'str', 'default': ''},
                  attached_host={'type': 'str', 'default': ''})
 
     if module.params.get('state') == 'connected':
@@ -209,14 +210,24 @@ def _save_attachment(db, params, data):
 
 
 def __generate_where(params):
+    def _partial(field):
+        if field == 'host':
+            res = '%s LIKE :%s%@%'
+        else:
+            res = '%s=:%s'
+        return res % (field, field)
+
     filters = {k: params[k] for k in ('id', 'name', 'provider', 'backend',
-                                      'name', 'size', 'host')
+                                      'name', 'size')
                if params.get(k)}
+
     if filters:
-        query_str = ' WHERE ' + ' and '.join('%s=:%s' % (f, f)
-                                             for f in filters)
+        query_str = ' WHERE ' + ' and '.join(_partial(f) for f in filters)
     else:
         query_str = ''
+    if filters.get('host'):
+        filters['host'] = filters['host'] + '@%'
+
     return query_str, filters
 
 
