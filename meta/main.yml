@@ -8,6 +8,6 @@ galaxy_info:
   galaxy_tags: [ 'storage', 'system', 'alpha', 'volume', 'cinderlib', 'cinder', 'provision' ]
   platforms:
   - name: Fedora
-    versions: [ 24, 25 ]
+    versions: [ 24, 25, 26, 27, 28, 29, 30 ]
   - name: EL
     versions: [ 6, 7 ]
