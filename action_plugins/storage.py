@@ -21,6 +21,7 @@ import sqlite3
 
 import six
 
+import ansible
 from ansible.plugins import action
 
 
@@ -33,6 +34,12 @@ STORAGE_ATTRIBUTES = 'storage_attributes'
 PROVIDER_CONFIG = 'provider_config'
 BACKEND_CONFIG = 'backend_config'
 CONSUMER_CONFIG = 'consumer_config'
+
+
+if tuple(map(int, (ansible.__version__.split(".")))) < (2, 7, 0):
+    KWARGS_TEMPLATE = {'bare_deprecated': False}
+else:
+    KWARGS_TEMPLATE = {}
 
 
 class MissingException(Exception):
@@ -79,7 +86,7 @@ class DB(object):
         self.task_info = task_info
 
         inv = templar.template('inventory_file', convert_bare=True,
-                               fail_on_undefined=True, bare_deprecated=False)
+                               fail_on_undefined=True, **KWARGS_TEMPLATE)
         inv_path, inv_name = os.path.split(inv)
 
         self.db = sqlite3.connect(self.task_info['db_name'])
@@ -300,7 +307,7 @@ class Resource(object):
 
         return self._templar.template(name, convert_bare=True,
                                       fail_on_undefined=True,
-                                      bare_deprecated=False)
+                                      **KWARGS_TEMPLATE)
 
     def _get_brick_info(self):
         args = self.task.args.copy()
@@ -381,7 +388,7 @@ class Volume(Resource):
             if result.get('failed', False):
                 return result
 
-            pass_args.update(result['storage_data'])
+            pass_args.update(result[STORAGE_DATA])
 
         pass_args['attached_host'] = self._get_var('ansible_fqdn')
 
@@ -391,7 +398,7 @@ class Volume(Resource):
             return result
 
         pass_args = args.copy()
-        pass_args.update(result['storage_data'])
+        pass_args.update(result[STORAGE_DATA])
 
         result = self.runner(pass_args, ctrl=False)
         return result

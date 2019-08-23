@@ -19,7 +19,7 @@ import datetime
 import json
 
 from ansible.module_utils import basic
-from ansible.module_utils import common
+from ansible.module_utils.storage import common
 
 
 class _SetEncoder(json.JSONEncoder):
@@ -189,3 +189,7 @@ class Volume(Resource):
 
     def validate_disconnected(self):
         self._validate(attached_host={'type': 'str'})
+
+    def validate_extended(self):
+        self._validate(attached_host={'type': 'str', 'default': ''},
+                       size_required=True)

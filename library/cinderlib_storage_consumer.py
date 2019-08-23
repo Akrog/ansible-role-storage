@@ -25,7 +25,7 @@ import traceback
 
 # from ansible.module_utils.
 from ansible.module_utils import basic
-from ansible.module_utils import common
+from ansible.module_utils.storage import common
 
 import six
 

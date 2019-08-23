@@ -27,8 +27,8 @@ from cinderclient import client as cinder
 from cinderclient import exceptions
 from keystoneauth1 import loading
 
-from ansible.module_utils import storage_base
-from ansible.module_utils import common
+from ansible.module_utils.storage import base
+from ansible.module_utils.storage import common
 
 
 HOME = os.path.expanduser("~")
@@ -36,7 +36,7 @@ HOME = os.path.expanduser("~")
 REFRESH_TIME = 1
 
 
-class Resource(storage_base.Resource):
+class Resource(base.Resource):
     def __init__(self, *args, **kwargs):
         super(Resource, self).__init__(*args, **kwargs)
         self.backend = self._setup(self.storage_data)
@@ -63,7 +63,7 @@ class Resource(storage_base.Resource):
 
 
 @Resource.register
-class Backend(Resource, storage_base.Backend):
+class Backend(Resource, base.Backend):
     # backend is equivalent to volume type
     BACKEND_CONFIG_SPECS = {
         'auth_system': {'type': 'str', 'default': 'password'},
@@ -125,7 +125,7 @@ class Backend(Resource, storage_base.Backend):
 
 
 @Resource.register
-class Volume(Resource, storage_base.Volume):
+class Volume(Resource, base.Volume):
     METADATA_FIELDS = ('id', 'host', 'backend')
 
     @classmethod

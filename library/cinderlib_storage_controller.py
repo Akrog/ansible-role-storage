@@ -22,21 +22,20 @@ import os
 # from ansible.module_utils.
 # from ansible.module_utils import basic
 
-from ansible.module_utils import storage_base
-from ansible.module_utils import common
+from ansible.module_utils.storage import base
+from ansible.module_utils.storage import common
 
 import cinderlib
 
 HOME = os.path.expanduser("~")
 
 
-class Resource(storage_base.Resource):
+class Resource(base.Resource):
     def __init__(self, *args, **kwargs):
         # If at some point we have a base class that overwrites __init__ we can
         # use this to call it.
         # bases = [b for b in self.__class__.__bases__
-        #          if b is not Resource and issubclass(b,
-        #                                              storage_base.Resource)]
+        #          if b is not Resource and issubclass(b,base.Resource)]
         # if bases:
         #     for base in bases:
         #         base.__init__(self, *args, **kwargs)
@@ -63,7 +62,7 @@ class Resource(storage_base.Resource):
 
 
 @Resource.register
-class Backend(Resource, storage_base.Backend):
+class Backend(Resource, base.Backend):
     DEFAULT_PERSISTENCE = {
         'storage': 'db',
         'connection': 'sqlite:///' + os.path.join(HOME, 'mydb.sqlite'),
@@ -133,7 +132,7 @@ class Backend(Resource, storage_base.Backend):
 
 
 @Resource.register
-class Volume(Resource, storage_base.Volume):
+class Volume(Resource, base.Volume):
     FIELDS_MAP = {'id': 'id', 'name': 'name', 'size': 'size', 'host': 'host',
                   'cluster_name': 'cluster_name'}
 
