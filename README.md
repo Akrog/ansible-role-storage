@@ -51,6 +51,7 @@ following operations.
 - Get *backend* stats
 - Create volumes
 - Delete volumes
+- Extend volumes
 - Attach volumes
 - Detach volumes
 

@@ -278,7 +278,7 @@ because an undefined `host` parameter will default to the node's FQDN, which
 won't match the created volumes.
 
 We can use the `name` parameter to connect to a volume, or we can use the size,
-size they are all of different sizes.
+if they are all of different sizes.
 
 .. code-block:: yaml
 

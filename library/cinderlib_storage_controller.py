@@ -233,6 +233,38 @@ class Volume(Resource, base.Volume):
 
         return {'changed': bool(connection)}
 
+    @Resource.state
+    def extended(self, params):
+        params = self._prepare_params(params)
+        new_size = params.pop('size')
+        old_size = params.pop('old_size')
+        if old_size:
+            params['size'] = old_size
+        vol = self._get_volume(params)
+        # The volume may have already been extended
+        if not vol and 'size' in params:
+            params['size'] = new_size
+            vol = self._get_volume(params, fail_not_found=True)
+
+        if vol.size > new_size:
+            raise Exception('Volumes cannot be shrinked')
+
+        result = {'changed': False, 'new_size': new_size}
+        if new_size != vol.size:
+            result['changed'] = True
+            vol.extend(new_size)
+
+        # TODO: Support multiattach, return list and iterate in action plugin
+        if vol.connections:
+            conn = vol.connections[0]
+            result['attached_host'] = conn.attached_host
+            # storage_data = self._to_json(vol)
+            # storage_data.pop('type')
+            # storage_data[common.CONNECTION_INFO] = conn.connection_info
+            # result[common.STORAGE_DATA] = storage_data
+
+        return result
+
 
 def main():
     # This instantiates a resource and checks provided parameters

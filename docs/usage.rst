@@ -145,7 +145,7 @@ which is accomplished by setting the `state` of a `volume` `resource` to
 to pass it.  There are only 2 required attributes that must be passed on a
 create task: `resource` and `size`.
 
-The task provides the following keys in the returned value at the rool level:
+The task provides the following keys in the returned value at the root level:
 
 =========  ====================================================================
 Key        Contents
@@ -335,6 +335,63 @@ fail because there are 2 volumes that matches the addressing.
          resource: volume
          state: absent
          size: 2
+
+Extend
+~~~~~~
+
+Extending the size of a specific volume is accomplished by setting the `state`
+of a `volume` `resource` to `extended`.  There is only one required parameters
+for this call, `size` which indicates the new size of the volume.
+
+The task provides the following keys in the returned value at the root level:
+
+==========  ====================================================================
+Key         Contents
+==========  ====================================================================
+`new_size`  The new size of the volume
+`device`    Present if the volume is attached and the volume has been rescanned
+            on the host, after it was extended, to reflect the new size.  The
+            contents of the dictionary depends on the type of connection, but
+            it will include the `path` key indicating where the volume is on
+            the host.
+
+Basic example to extend a volume to 2 GB:
+
+.. code-block:: yaml
+
+   - storage:
+         resource: volume
+         status: extended
+         size: 2
+
+We only have 2 backends, and only one of them uses the default *provider*, so
+following the addressing rules the volume that will be extended is on backend1.
+This extend task is equivalent to:
+
+.. code-block:: yaml
+
+   - storage:
+         resource: volume
+         state: extended
+         size: 2
+         backend: backend1
+         provider: cinderlib
+
+Since the `size` parameter is used to indicate the new size of the volume, we
+can use `old_size` to indicate what was the old size of the volume for
+selection purposes, though it's usually not necessary.
+
+.. code-block:: yaml
+
+   - storage:
+         resource: volume
+         status: extended
+         size: 2
+         old_size: 1
+
+.. warning:: Extending volumes may affect the idempotency of playbooks, so keep
+   this in mind.  If we create a volume with size 1 and then extend it to 2,
+   then replaying the create volume task will create a new volume.
 
 Connect
 ~~~~~~~

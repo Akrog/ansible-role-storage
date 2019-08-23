@@ -417,6 +417,25 @@ class Volume(Resource):
         result = self.runner(pass_args)
         return result
 
+    def extended(self, args):
+        # Make the controller request the extend on the backend
+        result = self.runner(args)
+        if result.get('failed', False):
+            return result
+
+        # Make the node notice if it has changed and is attached
+        if result['attached_host']:
+            pass_args = args.copy()
+            # We cannot pass the size or the node won't find the attachment
+            pass_args.pop('size')
+            pass_args.pop('old_size', None)
+            pass_args['provider'] = self.provider_name
+            # pass_args.update(result[STORAGE_DATA])
+            result = self.runner(pass_args, ctrl=False)
+            if result.get('failed', False):
+                return result
+        return result
+
     def run(self):
         original_args = self.task.args.copy()
         # Automatically set the host parameter

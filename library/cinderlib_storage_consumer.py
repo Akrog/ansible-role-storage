@@ -258,6 +258,7 @@ def attach_volume(db, module):
     data = {'device': device, common.CONNECTION_INFO: conn_info,
             'connector': connector_dict}
 
+    params['id'] = conn_info['data']['volume_id']
     _save_attachment(db, params, data)
 
     return {'path': device['path'],
@@ -287,7 +288,7 @@ def detach_volume(db, module):
 
 def _validate_volume(module):
     specs = module.argument_spec.copy()
-    specs.update(state={'choices': ('connected', 'disconnected'),
+    specs.update(state={'choices': ('connected', 'disconnected', 'extended'),
                         'required': True},
                  provider={'type': 'str'},
                  backend={'type': 'str'},
@@ -326,6 +327,14 @@ def _save_attachment(db, params, data):
     fields = ','.join('?' * len(DB_FIELDS))
     cursor = db.cursor()
     cursor.execute('INSERT INTO attachments VALUES (%s)' % fields, values)
+    db.commit()
+    cursor.close()
+
+
+def _update_attachment_size(db, vol_id, new_size):
+    cursor = db.cursor()
+    cursor.execute('UPDATE attachments SET size=%s WHERE id="%s"' %
+                   (new_size, vol_id))
     db.commit()
     cursor.close()
 
@@ -379,13 +388,36 @@ def _delete_attachment(db, module):
     cursor.close()
 
 
+def extend_volume(db, module):
+    data = _get_data(db, module)
+    if not data:
+        module.fail_json(msg='No attachment found')
+    connector_dict = data['connector']
+    conn_info = data[common.CONNECTION_INFO]
+    protocol = conn_info['driver_volume_type']
+    # NOTE(geguileo): afaik only remotefs uses connection info
+    conn = connector.InitiatorConnector.factory(
+        protocol, 'sudo', user_multipath=connector_dict['multipath'],
+        device_scan_attempts=3, conn=connector_dict)
+    new_size = conn.extend_volume(conn_info['data'])
+    # Extend returns the size in bytes, convert to GB
+    new_size = int(round(new_size / 1024.0 / 1024.0 / 1024.0))
+
+    # Need to update the entry in the database or next connect/disconnect
+    # requests will not find it
+    _update_attachment_size(db, conn_info['data']['volume_id'], new_size)
+
+    return {'changed': True, 'size': new_size, 'device': data['device']}
+
+
 def volume(module):
+    methods = {'connected': attach_volume,
+               'disconnected': detach_volume,
+               'extended': extend_volume}
     new_module = _validate_volume(module)
     db = _setup_db(module.params)
-    if new_module.params['state'] == 'connected':
-        result = attach_volume(db, new_module)
-    else:
-        result = detach_volume(db, new_module)
+    method = methods[new_module.params['state']]
+    result = method(db, new_module)
     return result
 
 

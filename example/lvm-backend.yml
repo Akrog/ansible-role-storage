@@ -78,6 +78,7 @@
 #------------------------------------------------------------------------------
 - hosts: all
   vars:
+    ansible_become: yes
     storage_backends:
         lvm:
             volume_driver: 'cinder.volume.drivers.lvm.LVMVolumeDriver'
@@ -115,6 +116,37 @@
         register: conn
       - debug:
           msg: "Volume {{vol.id}} attached to {{conn.path}}"
+
+      - name: Partition volume
+        parted:
+            device: "{{conn.path}}"
+            flags: [ lvm ]
+            number: 1
+            state: present
+
+      - command: "lsblk {{conn.path}}"
+        register: blk_size
+      - debug:
+          msg: "The full block device size: {{ blk_size.stdout_lines[1].split()[3] }}"
+
+      - name: Extending the volume
+        storage:
+            resource: volume
+            state: extended
+            size: 2
+        register: extend
+
+      - command: "lsblk {{conn.path}}"
+        register: blk_size
+      - debug:
+          msg: "The full block device size: {{ blk_size.stdout_lines[1].split()[3] }} but the partition is still {{ blk_size.stdout_lines[2].split()[3] }}"
+
+      - name: Grow the partition
+        command: 'parted {{extend.device.path}} resizepart 1 100%'
+      - command: "lsblk {{extend.device.path}}1"
+        register: blk_size
+      - debug:
+          msg: "The partition size is now: {{ blk_size.stdout_lines[1].split()[3] }}"
 
       - name: Disconnect volume
         storage:

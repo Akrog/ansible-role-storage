@@ -192,4 +192,5 @@ class Volume(Resource):
 
     def validate_extended(self):
         self._validate(attached_host={'type': 'str', 'default': ''},
+                       old_size={'type': 'int', 'required': False},
                        size_required=True)
