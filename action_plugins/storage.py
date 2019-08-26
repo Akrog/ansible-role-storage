@@ -390,6 +390,7 @@ class Volume(Resource):
 
             pass_args.update(result[STORAGE_DATA])
 
+        pass_args.setdefault('provider', self.provider_name)
         pass_args['attached_host'] = self._get_var('ansible_fqdn')
 
         result = self.runner(pass_args)
@@ -398,6 +399,7 @@ class Volume(Resource):
             return result
 
         pass_args = args.copy()
+        pass_args.setdefault('provider', self.provider_name)
         pass_args.update(result[STORAGE_DATA])
 
         result = self.runner(pass_args, ctrl=False)
@@ -405,6 +407,7 @@ class Volume(Resource):
 
     def disconnected(self, args):
         args = args.copy()
+        args.setdefault('provider', self.provider_name)
         result = self.runner(args, ctrl=False)
         if result.get('failed', False):
             return result
