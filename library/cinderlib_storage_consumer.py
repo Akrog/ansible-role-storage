@@ -393,7 +393,7 @@ def node(module):
     specs = module.argument_spec
     specs.update(ips={'type': 'list', 'required': True},
                  multipath={'type': 'bool', 'default': True},
-                 enforce_multipath={'type': 'bool', 'default': True})
+                 enforce_multipath={'type': 'bool', 'default': False})
     module = basic.AnsibleModule(module.argument_spec,
                                  check_invalid_arguments=True)
 
@@ -412,23 +412,23 @@ def _set_priv_helper(root_helper):
     existing_bgcp = connector.get_connector_properties
     existing_bcp = connector.InitiatorConnector.factory
 
-    def my_bgcp(*args, **kwargs):
+    def my_get_connector_properties(*args, **kwargs):
         if len(args):
             args = list(args)
             args[0] = root_helper
         else:
             kwargs['root_helper'] = root_helper
-        kwargs['execute'] = rootwrap.custom_execute
+        kwargs['execute'] = _execute
         return existing_bgcp(*args, **kwargs)
 
-    def my_bgc(protocol, *args, **kwargs):
+    def my_connector_factory(protocol, *args, **kwargs):
         if len(args):
             # args is a tuple and we cannot do assignments
             args = list(args)
             args[0] = root_helper
         else:
             kwargs['root_helper'] = root_helper
-        kwargs['execute'] = rootwrap.custom_execute
+        kwargs['execute'] = _execute
 
         # OS-Brick's implementation for RBD is not good enough for us
         if protocol == 'rbd':
@@ -438,8 +438,11 @@ def _set_priv_helper(root_helper):
 
         return factory(*args, **kwargs)
 
-    connector.get_connector_properties = my_bgcp
-    connector.InitiatorConnector.factory = staticmethod(my_bgc)
+    # Replace OS-Brick method and the reference we have to it
+    connector.get_connector_properties = my_get_connector_properties
+    connector.InitiatorConnector.factory = staticmethod(my_connector_factory)
+    if hasattr(rootwrap, 'unlink_root'):
+        rootwrap.unlink_root = unlink_root
 
 
 def main():
