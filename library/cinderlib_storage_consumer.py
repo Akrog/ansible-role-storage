@@ -361,11 +361,11 @@ def _get_data(db, module, fail_on_missing=False):
     cursor.close()
     if not results:
         if fail_on_missing:
-            module.fail_json('No attachment found')
+            module.fail_json(msg='No attachment found')
         return None
 
     if len(results) > 1:
-        module.fail_json('Multiple attachments found')
+        module.fail_json(msg='Multiple attachments found')
 
     return results[0]
 
