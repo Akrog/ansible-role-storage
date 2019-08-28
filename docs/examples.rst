@@ -29,6 +29,40 @@ In this example we'll see how to configure the Kaminario K2 backend on a
      roles:
          - { role: storage, node_type: controller }
 
+Faster playbooks
+~~~~~~~~~~~~~~~~
+
+If we are already certain that a node has everything installed, we can skip the
+setup part using variables `storage_setup_providers` and
+`storage_setup_consumers`.
+
+For the controller:
+
+.. code-block:: yaml
+
+   - hosts: storage_controller
+     vars:
+       ansible_become: yes
+       storage_setup_providers: no
+       storage_backends:
+           lvm:
+               volume_driver: 'cinder.volume.drivers.lvm.LVMVolumeDriver'
+               volume_group: 'ansible-volumes'
+               iscsi_protocol: 'iscsi'
+               iscsi_helper: 'lioadm'
+     roles:
+         - {role: storage, node_type: controller}
+
+And for the consumers:
+
+.. code-block:: yaml
+
+   - hosts: storage_consumers
+     vars:
+       ansible_become: yes
+       storage_setup_consumers: no
+     roles:
+         - {role: storage, node_type: consumer}
 
 Populating data
 ~~~~~~~~~~~~~~~

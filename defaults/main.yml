@@ -16,6 +16,8 @@
 # Role defaults
 node_type: 'consumer'
 
+storage_setup_providers: yes
+storage_setup_consumers: yes
 #
 # Cinderlib provider defaults
 storage_cinderlib_disable_logs: False

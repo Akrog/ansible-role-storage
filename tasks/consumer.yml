@@ -19,12 +19,14 @@
 - name: Set repositories
   include_tasks: setup_openstack_repos.yml
   become: true
+  when: storage_setup_consumers
 
 - name: Install os-brick
   package:
       name: python-os-brick
       state: present
   become: true
+  when: storage_setup_consumers
 
 - name: Get OS-Brick info
   storage:
