@@ -53,6 +53,6 @@
 
 - name: Install RDO respository on CentOS
   package:
-    name: centos-release-openstack-pike
+    name: centos-release-openstack-stein
     state: present
   when: ansible_distribution == "CentOS"

@@ -48,8 +48,8 @@ For the controller:
            lvm:
                volume_driver: 'cinder.volume.drivers.lvm.LVMVolumeDriver'
                volume_group: 'ansible-volumes'
-               iscsi_protocol: 'iscsi'
-               iscsi_helper: 'lioadm'
+               target_protocol: 'iscsi'
+               target_helper: 'lioadm'
      roles:
          - {role: storage, node_type: controller}
 
@@ -293,8 +293,8 @@ Here's an example creating 50 volumes of different sizes:
              lvm:
                  volume_driver: 'cinder.volume.drivers.lvm.LVMVolumeDriver'
                  volume_group: 'cinder-volumes'
-                 iscsi_protocol: 'iscsi'
-                 iscsi_helper: 'lioadm'
+                 target_protocol: 'iscsi'
+                 target_helper: 'lioadm'
      roles:
          - {role: storage, node_type: controller}
      tasks:
@@ -350,8 +350,8 @@ a thin volume we would be wasting space.
              lvm:
                  volume_driver: 'cinder.volume.drivers.lvm.LVMVolumeDriver'
                  volume_group: 'cinder-volumes'
-                 iscsi_protocol: 'iscsi'
-                 iscsi_helper: 'lioadm'
+                 target_protocol: 'iscsi'
+                 target_helper: 'lioadm'
              kaminario:
                volume_driver: cinder.volume.drivers.kaminario.kaminario_iscsi.KaminarioISCSIDriver
                san_ip: w.x.y.z
