@@ -12,11 +12,11 @@
     name: openstack-cinder
     state: present
 
-- name: Install Cinderlib package from URL
+- name: Install Cinderlib package from RPM
   package:
     name: python2-cinderlib
     state: present
-  when: not enabled_osp
+  when: not storage_cl_try_osp or enabled_osp.failed
 
 - name: Install Cinderlib package from URL
   yum:
@@ -24,7 +24,7 @@
     # "Requires: openstack-cinder >= 12.0.0"
     name: http://mirror.centos.org/centos/7/cloud/x86_64/openstack-stein/python2-cinderlib-0.9.0-1.el7.noarch.rpm
     state: present
-  when: enabled_osp
+  when: storage_cl_try_osp and not enabled_osp.failed
 
 
 # -----------------------------------------------------------------------------

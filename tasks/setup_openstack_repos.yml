@@ -17,42 +17,54 @@
 # SET REPOSITORIES
 #
 
-- set_fact: storage_cl_try_osp="{{ ansible_distribution == 'Red Hat Enterprise Linux' and ansible_distribution_major_version == 7 }}"
+- set_fact: storage_cl_try_osp="{{ ansible_distribution in ['Red Hat Enterprise Linux', 'RedHat'] and ansible_distribution_major_version == '7' }}"
 
 - name: Disable unwanted OSP repositories on RHEL
-  yum_repository:
-    name: "rhel-{{ ansible_distribution_major_version}}-server-openstack-{{ item }}.0-rpms"
+  rhsm_repository:
+    name: "rhel-{{ ansible_distribution_major_version}}-server-openstack-{{ unwanted_osp_repo }}-rpms"
     state: absent
   ignore_errors: True
   when: storage_cl_try_osp
-  loop: "{{ range(5, 14)|list }}"
+  loop: "{{['5.0', '6.0', '7.0'] + range(8, 14)|list }}"
+  loop_control:
+    loop_var: unwanted_osp_repo
 
 - name: Enable OSP repository on RHEL
-  yum_repository:
-    name: "rhel-{{ ansible_distribution_major_version}}-server-openstack-14.0-rpms"
+  rhsm_repository:
+    name: "rhel-{{ ansible_distribution_major_version}}-server-openstack-14-rpms"
     state: present
   register: enabled_osp
   ignore_errors: True
   when: storage_cl_try_osp
 
 - name: Enable required packages for RDO on RHEL
-  yum_repository:
-    name: "{{ item }}"
-    state: present
-  when: not enabled_osp
+  rhsm_repository:
+    name: "{{ rhel_pkgs }}"
+    state: enabled
+  when: storage_cl_try_osp and enabled_osp.failed
   with_list:
       - rhel-7-server-optional-rpms
       - rhel-7-server-extras-rpms
       - rhel-7-server-rh-common-rpms
+  loop_control:
+    loop_var: rhel_pkgs
+
+- name: Check if RDO stein repository is installed
+  package:
+    name: rdo-release
+    state: present
+  register: rdo_repo_present
+  ignore_errors: yes
+  when: (storage_cl_try_osp and enabled_osp.failed) or ansible_distribution == 'Fedora'
 
 - name: Install RDO repository on RHEL and Fedora
   package:
     name: https://repos.fedorapeople.org/repos/openstack/openstack-stein/rdo-release-stein-2.noarch.rpm
     state: present
-  when: (storage_cl_try_osp and not enabled_osp) or ansible_distribution == "Fedora"
+  when: ((storage_cl_try_osp and enabled_osp.failed) or ansible_distribution == 'Fedora') and rdo_repo_present.failed
 
 - name: Install RDO respository on CentOS
   package:
     name: centos-release-openstack-stein
     state: present
-  when: ansible_distribution == "CentOS"
+  when: ansible_distribution == 'CentOS'
