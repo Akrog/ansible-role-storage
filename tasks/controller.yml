@@ -26,7 +26,6 @@
   vars:
     provider_config: "{{ lookup('oneof', 'storage_' + item + '_config', 'storage_' + item + '_config_defaults') }}"
   with_list: "{{ storage_enabled_providers }}"
-  become: yes
   when: storage_setup_providers
 
 - name: Initialize backends

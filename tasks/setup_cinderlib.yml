@@ -1,6 +1,5 @@
 - name: Set repositories
   include_tasks: setup_openstack_repos.yml
-  become: true
 
 # -----------------------------------------------------------------------------
 # INSTALL CINDER AND CINDERLIB
