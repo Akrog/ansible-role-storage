@@ -302,6 +302,9 @@ def _validate_volume(module):
     if module.params.get('state') == 'connected':
         specs[common.CONNECTION_INFO] = {'type': 'dict', 'required': True}
 
+    if module.params.get('state') == 'extended':
+        specs['new_size'] = {'type': 'int', 'required': True}
+
     new_module = basic.AnsibleModule(specs, check_invalid_arguments=True)
     return new_module
 
@@ -400,23 +403,26 @@ def extend_volume(db, module):
     data = _get_data(db, module)
     if not data:
         module.fail_json(msg='No attachment found')
-    old_size = _get_size(db, module)
-    connector_dict = data['connector']
-    conn_info = data[common.CONNECTION_INFO]
-    protocol = conn_info['driver_volume_type']
-    # NOTE(geguileo): afaik only remotefs uses connection info
-    conn = connector.InitiatorConnector.factory(
-        protocol, 'sudo', user_multipath=connector_dict['multipath'],
-        device_scan_attempts=3, conn=connector_dict)
-    new_size = conn.extend_volume(conn_info['data'])
-    # Extend returns the size in bytes, convert to GB
-    new_size = int(round(new_size / 1024.0 / 1024.0 / 1024.0))
+    our_size = _get_size(db, module)
+    new_size = module.params['new_size']
 
-    # Need to update the entry in the database or next connect/disconnect
-    # requests will not find it
-    _update_attachment_size(db, conn_info['data']['volume_id'], new_size)
+    if our_size != new_size:
+        connector_dict = data['connector']
+        conn_info = data[common.CONNECTION_INFO]
+        protocol = conn_info['driver_volume_type']
+        # NOTE(geguileo): afaik only remotefs uses connection info
+        conn = connector.InitiatorConnector.factory(
+            protocol, 'sudo', user_multipath=connector_dict['multipath'],
+            device_scan_attempts=3, conn=connector_dict)
+        new_size = conn.extend_volume(conn_info['data'])
+        # Extend returns the size in bytes, convert to GB
+        new_size = int(round(new_size / 1024.0 / 1024.0 / 1024.0))
 
-    return {'changed': old_size != new_size,
+        # Need to update the entry in the database or next connect/disconnect
+        # requests will not find it
+        _update_attachment_size(db, conn_info['data']['volume_id'], new_size)
+
+    return {'changed': our_size != new_size,
             'size': new_size,
             'device': data['device']}
 

@@ -482,6 +482,7 @@ class Volume(Resource):
             # We cannot pass the size or the node won't find the attachment
             pass_args.pop('size')
             pass_args.pop('old_size', None)
+            pass_args['new_size'] = result['new_size']
             pass_args['provider'] = self.provider_name
             # pass_args.update(result[STORAGE_DATA])
             result = self.runner(pass_args, ctrl=False)
