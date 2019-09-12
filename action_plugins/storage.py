@@ -15,6 +15,7 @@
 
 
 from __future__ import (absolute_import, division, print_function)
+import importlib
 import json
 import os
 import sqlite3
@@ -23,6 +24,10 @@ import six
 
 import ansible
 from ansible.plugins import action
+try:
+    from ansible.utils import sentinel
+except ImportError:
+    sentinel = None
 
 
 DEFAULT_PROVIDER = 'cinderlib'
@@ -70,13 +75,35 @@ class BackendObj(object):
             setattr(self, f, v)
         # We could lazy load these
         self.attributes = json.loads(self.attributes)
-        self.data = json.loads(decryptor(self.data))
+        self.data = decryptor(self.data)
 
-        self.ctxt = json.loads(decryptor(self.ctxt))
-        sets = self.ctxt.pop('___sets')
+        self.ctxt = decryptor(self.ctxt)
         # Reconstruct sets
+        sets = self.ctxt.pop('___sets')
         for key in sets:
             self.ctxt['_attributes'][key] = set(self.ctxt['_attributes'][key])
+        sets = self.ctxt.pop('___sets_defaults', tuple())
+        for key in sets:
+            self.ctxt['_attr_defaults'][key] = set(
+                self.ctxt['_attr_defaults'][key])
+        # Reconstruct sentinels
+        sentinels = self.ctxt.pop('___sentinels')
+        for key in sentinels:
+            self.ctxt['_attributes'][key] = sentinel.Sentinel
+
+        if '_become_plugin' in self.ctxt:
+            become_type, become_vars = self.ctxt['_become_plugin']
+            path = become_vars['_original_path'].split(os.path.sep)
+            # Remove the .py extension
+            path[-1] = path[-1].rsplit('.', 1)[0]
+            # Convert to namespace
+            namespace = '.'.join(path[path.index('ansible'):])
+            # Import and set variables
+            module = importlib.import_module(namespace)
+            plugin = getattr(module, become_type)()
+            vars(plugin).clear()
+            vars(plugin).update(become_vars)
+            self.ctxt['_become_plugin'] = plugin
 
 
 class DB(object):
@@ -171,11 +198,15 @@ class DB(object):
 
     def _decrypt(self, data):
         # TODO: Decrypt data using self.task_info['secret']
-        return data
+        try:
+            return json.loads(data)
+        except Exception:
+            return data
 
     def _encrypt(self, data):
-        if not isinstance(data, six.string_types):
+        if isinstance(data, dict):
             data = json.dumps(data)
+
         # TODO: Encrypt data using self.task_info['secret']
         return data
 
@@ -220,14 +251,36 @@ class Resource(object):
         # Make host context JSON compatible
         ctxt = vars(self._play_context).copy()
         sets = []
+        sentinels = []
         attributes = ctxt['_attributes']
         for key, val in attributes.items():
             if isinstance(val, set):
                 sets.append(key)
                 attributes[key] = list(val)
+
+            elif sentinel and val is sentinel.Sentinel:
+                sentinels.append(key)
+                del attributes[key]
         ctxt['___sets'] = sets
+        ctxt['___sentinels'] = sentinels
+
+        sets2 = []
+        if '_attr_defaults' in ctxt:
+            defaults = ctxt['_attr_defaults']
+            for key, val in defaults.items():
+                if isinstance(val, set):
+                    sets2.append(key)
+                    defaults[key] = list(val)
+            ctxt['___sets_defaults'] = sets2
+
         ctxt['___fqdn'] = self._get_var('ansible_fqdn')
         ctxt['___machine_id'] = self._get_var('ansible_machine_id')
+
+        if '_become_plugin' in ctxt:
+            ctxt['_become_plugin'] = (type(ctxt['_become_plugin']).__name__,
+                                      vars(ctxt['_become_plugin']))
+            ctxt['_connection_opts'] = self.action_module._connection._options
+
         return ctxt
 
     def _get_controller_data(self):
@@ -469,6 +522,9 @@ class ActionModule(action.ActionBase):
             conn_type = self._play_context.connection
             self._connection = self._shared_loader_obj.connection_loader.get(
                 conn_type, self._play_context, self._connection._new_stdin)
+            if '_connection_opts' in context:
+                self._connection._options.update(context['_connection_opts'])
+                self._connection.become = context['_become_plugin']
         try:
             result = self._execute_module(module_name=module_name,
                                           module_args=module_args,
