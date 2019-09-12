@@ -379,6 +379,14 @@ def _get_data(db, module, fail_on_missing=False):
     return results[0]
 
 
+def _get_size(db, module):
+    query_str = 'SELECT size FROM attachments'
+    where_str, filters = __generate_where(module.params)
+    cursor = db.cursor()
+    cursor.execute(query_str + where_str, filters)
+    return int(cursor.fetchone()[0])
+
+
 def _delete_attachment(db, module):
     query_str = 'DELETE FROM attachments'
     where_str, filters = __generate_where(module.params)
@@ -392,6 +400,7 @@ def extend_volume(db, module):
     data = _get_data(db, module)
     if not data:
         module.fail_json(msg='No attachment found')
+    old_size = _get_size(db, module)
     connector_dict = data['connector']
     conn_info = data[common.CONNECTION_INFO]
     protocol = conn_info['driver_volume_type']
@@ -407,7 +416,9 @@ def extend_volume(db, module):
     # requests will not find it
     _update_attachment_size(db, conn_info['data']['volume_id'], new_size)
 
-    return {'changed': True, 'size': new_size, 'device': data['device']}
+    return {'changed': old_size != new_size,
+            'size': new_size,
+            'device': data['device']}
 
 
 def volume(module):
