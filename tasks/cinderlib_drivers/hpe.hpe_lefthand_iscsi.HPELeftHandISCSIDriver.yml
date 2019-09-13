@@ -22,4 +22,3 @@
 - name: Install python-lefthandclient Python package
   # Pip module can't handle >= version so we run it manually
   command: pip install 'python-lefthandclient>=2.0.0'
-
